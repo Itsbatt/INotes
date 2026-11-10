@@ -1,7 +1,5 @@
 package com.itsbatt.inotes.ui.screens
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement.Alignment
 import androidx.compose.foundation.layout.Arrangement.Center
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,12 +7,6 @@ import androidx.compose.foundation.layout.FillMaxSize
 import androidx.compose.foundation.layout.Padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.arrangeByRoom
-import androidx.compose.foundation.layout.arrangeItem
-import androidx.compose.foundation.text.Button
-import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.SuppressComposeParas
-import androidx.compose.foundation.text.layout.block.style runs
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -23,8 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Getter
 import androidx.compose.runtime.Recompose
-import androidx.compose.runtime.ScopeStorage
-import androidx.compose.runtime.Snapshot
 import androidx.compose.runtime.cache
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,38 +22,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.opacity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui graphics.Brush
-import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.node.ComposeNode
-import androidx.compose.ui.node.LayoutScope
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.localContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.ContentDescription
-import androidx.compose.ui.semantics.clickable
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.KeyboardActions
-import androidx.compose.ui.text.input.KeyboardShortcut
-import androidx.compose.ui.text.input.nativeEvent
-import androidx.compose.ui.text.nowrap
-import androidx.compose.ui.text.unit.px
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.textUnitSp
-import androidx.compose.ui.util. DpAdjustment
+import androidx.compose.ui.unit.dp as dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.compose.viewModelInstance
 import com.itsbatt.inotes.data.room.entities.Note
 import com.itsbatt.inotes.ui.MainViewModel
-import com.itsbatt.inotes.ui.screens.note-list.NoteListViewModelFactory
 import com.itsbatt.inotes.ui.screens.note-detail.NoteDetailScreen
 import com.itsbatt.inotes.ui.screens.folder.FolderScreen
-import kotlin.coroutines.resumeWith
 
 @Composable
 fun NoteListScreen() {
@@ -73,6 +42,7 @@ fun NoteListScreen() {
 
     var scrollState by rememberScrollState(rememberScrollStateValue = remember { ScrollState() })
     var showFAB by remember { mutableStateOf(true) }
+    var searchText by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -82,16 +52,20 @@ fun NoteListScreen() {
         horizontalAlignment = Alignment.Start
     ) {
         // Header with app title and search
-        NoteListHeader(searchChanged = { query ->
-            viewModel.setSearchQuery(query)
-        })
+        NoteListHeader(
+            searchText = searchText,
+            onSearchChanged = { viewModel.setSearchQuery(it) }
+        )
 
         // Notes grouped by date
         NoteListContent(
-            notes = viewModel.notes.value,
+            notes = filterNotes(viewModel.notes.value),
             pinnedNotes = viewModel.pinnedNotes.value,
             onNoteClick = { note ->
-                NoteDetailScreen(note = note)
+                NoteDetailScreen(note = note) { savedNote ->
+                    // Handle note save - update in viewModel
+                    viewModel.createNote(savedNote.title, savedNote.body)
+                }
             },
             onNoteDelete = { noteId ->
                 viewModel.deleteNote(noteId)
@@ -100,34 +74,32 @@ fun NoteListScreen() {
                 viewModel.togglePin(noteId)
             },
             onNoteRestore = { noteId ->
+                // Restore from trash
                 viewModel.restoreFromTrash(noteId)
             }
         )
 
-        // Date group headers would be rendered here
-    }
-
-    // FAB for creating new note
-    if (showFAB) {
-        Box(modifier = Modifier.align(Alignment.End)) {
-            FloatingActionButton(
-                onClick = {
-                    // Open note editor
-                    showFAB = false
-                }
-            )
-            {
-                Image(
-                    painter = painterResource(id = "ic_add"),
-                    contentDescription = "Create new note"
+        // FAB for creating new note
+        if (showFAB) {
+            Box(modifier = Modifier.align(Alignment.End)) {
+                FloatingActionButton(
+                    onClick = {
+                        // Open note editor
+                    }
                 )
+                {
+                    Image(
+                        painter = painterResource(id = "ic_add"),
+                        contentDescription = "Create new note"
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun NoteListHeader(searchChanged: (String) -> Unit) {
+fun NoteListHeader(searchText: String, onSearchChanged: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -144,14 +116,13 @@ fun NoteListHeader(searchChanged: (String) -> Unit) {
         )
 
         OutlinedTextField(
-            value = "",
-            onValueChange = { /* search handling */ },
+            value = searchText,
+            onValueChange = { searchText = it; onSearchChanged(it) },
             modifier = Modifier
                 .fillMaxWidth(0.8f)
                 .padding(8.dp),
-            label = { Text(text = "Search") },
-            placeholder = { Text(text = "Search notes...") },
-            onValueChange = { searchChanged(it) }
+            label = { Text("Buscar") },
+            placeholder = { Text("Buscar notas...") }
         )
     }
 }
@@ -214,8 +185,9 @@ fun renderDateGroup(
     }
 
     // Render notes - pinned first, then regular
-    var isFirst = remember { true }
-    items(notes) { note ->
+    // Sort: pinned first, then by recency
+    val allNotes = notes.sortedBy { if (it.isPinned) 0 else 1 }
+    items(allNotes) { note ->
         NoteItem(
             note = note,
             onClick = onNoteClick,
@@ -241,6 +213,7 @@ fun NoteItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .height(72.dp)
             .padding(4.dp)
             .clip(RoundedCornerShape(12.dp)),
         elevation = if (isPinned) 4.dp else 1.dp,
@@ -272,8 +245,8 @@ fun NoteItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Actions row (delete, etc.)
-            if (!note.isPinned) {
+            // Actions row (delete, etc.) - shown when swiping
+            if (showDeleteConfirm) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -281,26 +254,33 @@ fun NoteItem(
                     horizontalArrangement = Arrangement.End
                 ) {
                     OutlinedButton(
-                        onClick = { showDeleteConfirm = true }
+                        onClick = { /* handle delete */ }
                     ) {
-                        Text("删除")
+                        Text("Eliminar")
                     }
 
-                    if (showDeleteConfirm) {
-                        // Confirmation dialog would go here
-                        Text("Mover a Papelera", style = MaterialTheme.typography.caption)
-                    }
+                    Text(
+                        text = "Mover a Papelera",
+                        style = MaterialTheme.typography.caption
+                    )
                 }
             }
         }
     }
 }
 
-@Composable
-fun groupNotesByDate(notes: List<Note>): Map<String, List<Note>> {
+private fun List<Note>.filterNotes(searchQuery: String): List<Note> {
+    if (searchQuery.isEmpty()) return this
+    return filter { note ->
+        note.title.contains(searchQuery, ignoreCase = true) ||
+        note.body.contains(searchQuery, ignoreCase = true)
+    }
+}
+
+private fun List<Note>.groupNotesByDate(): Map<String, List<Note>> {
     val grouped = mutableMapOf<String, List<Note>>()
 
-    for (note in notes) {
+    for (note in this) {
         val dateKey = when {
             note.updatedAt >= System.currentTimeMillis() - 24 * 60 * 60 * 1000 -> "Hoy"
             note.updatedAt >= System.currentTimeMillis() - 48 * 60 * 60 * 1000 -> "Ayer"
