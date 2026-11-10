@@ -1,90 +1,99 @@
 # INotes 📝
 
-Aplicación moderna de notas para Android con diseño y experiencia de usuario inspirados en la app **Notas de iOS (iPhone)**.
+Aplicación de notas para Android con diseño y experiencia de usuario inspirados en la app oficial **Notas de iOS (iPhone)**.
 
 ---
 
-## 📱 Características principales
+## 📸 Capturas de Pantalla (Marcadores)
 
-1. **Estética iOS Notes**:
-   - Paleta de colores oficial con acento amarillo (`#EAA824`).
-   - Tarjetas agrupadas con bordes redondeados y separadores sutiles estilo iOS.
-   - Tipografía refinada y modo oscuro / claro automático según el sistema.
-2. **Organización inteligente por fechas y estados**:
-   - Sección destacada para notas **Fijadas**.
-   - Agrupación automática temporal: **Hoy**, **Ayer**, **Últimos 7 días**, **Este mes** y **Anteriores**.
-3. **Gestión completa de carpetas**:
-   - Vista de carpetas: "Todas las notas", carpetas personalizadas y "Papelera".
-   - Crear, renombrar y eliminar carpetas.
-   - Contadores en tiempo real de notas por carpeta.
-4. **Editor fluido**:
-   - Edición de título y cuerpo.
-   - Guardado automático reactivo (debounced) y botón "Listo".
-   - Encabezado con fecha y hora exacta formateada.
-5. **Papelera y reciclaje**:
-   - Mover notas a la papelera sin perderlas.
-   - Restaurar notas o eliminarlas definitivamente.
-   - Opción de vaciar papelera con un toque.
-6. **Búsqueda en tiempo real**:
-   - Búsqueda instantánea en títulos y cuerpo de las notas.
-7. **Acciones rápidas**:
-   - Fijar/Desfijar notas.
-   - Compartir notas como texto a través de cualquier app (WhatsApp, Telegram, correo, etc.).
-8. **100% Local y Privado**:
-   - Base de datos Room offline en el dispositivo. Sin cuentas, sin rastreo y sin conexión a internet requerida.
+| Pantalla de Carpetas | Lista de Notas (Agrupada) | Editor de Nota |
+|:---:|:---:|:---:|
+| ![Pantalla de Carpetas](docs/screenshots/folders.png) | ![Lista de Notas](docs/screenshots/notes_list.png) | ![Editor de Nota](docs/screenshots/note_editor.png) |
+| *Acceso rápido, carpetas y papelera* | *Agrupación temporal (Hoy, Ayer...) y cabecera dinámica* | *Guardado con debounce (1.5s), deshacer/rehacer y compartir* |
 
 ---
 
-## 🛠️ Tecnologías y Arquitectura
+## 🚀 Funcionalidades (Alcance Cerrado)
 
+1. **Lista de notas agrupada por fecha de modificación:**
+   - Agrupación automática temporal: **Hoy**, **Ayer**, **Esta semana** y **Mes y año**.
+   - Sección prioritaria para notas fijadas (**Fijadas**).
+2. **Título grande estilo iOS:**
+   - Cabecera con título en negrita que se compacta de forma fluida y suave al hacer scroll.
+3. **Editor fluido con guardado automático:**
+   - Campos independientes para título y cuerpo.
+   - Guardado automático con debounce corto (1,5 segundos tras dejar de escribir) o botón de confirmación ("Listo").
+   - Controles de Deshacer y Rehacer.
+4. **Gestión completa de carpetas:**
+   - Crear, renombrar y eliminar carpetas personalizadas.
+   - **Regla de integridad:** Al borrar una carpeta, las notas asociadas se reasignan automáticamente a la carpeta principal *"Notas"*, evitando su pérdida accidental.
+5. **Fijar notas arriba:**
+   - Alternar fijado con chincheta amarilla para mantener las notas relevantes siempre visibles en la parte superior.
+6. **Búsqueda reactiva:**
+   - Filtrado instantáneo por texto en el título y en el cuerpo de las notas.
+7. **Borrado con gesto y papelera de 30 días:**
+   - Gesto de deslizar (swipe-to-dismiss) con confirmación para enviar a la papelera.
+   - Retención durante 30 días con opción de restaurar o eliminar definitivamente.
+8. **Modo Claro y Oscuro:**
+   - Soporte nativo para cambio de tema dinámico según la configuración del sistema.
+9. **Exportación y compartir:**
+   - Exportar contenido de la nota como texto plano a través del menú de compartir nativo de Android (`Intent.ACTION_SEND`).
+10. **100% Local y Privada:**
+    - Sin necesidad de cuentas, sin conexión a internet y sin recolección de datos.
+
+> [!NOTE]
+> Elementos visuales auxiliares que aparecen en capturas de iOS (como dibujo a mano alzada o casillas de verificación interactivas) quedan fuera del alcance cerrado de esta versión inicial.
+
+---
+
+## 🛠️ Requisitos del Entorno y Tecnologías
+
+- **Sistema Operativo Mínimo:** Android 10 (API 29)
+- **Target SDK:** Android 14 / 15 (API 34/35)
 - **Lenguaje:** Kotlin 1.9.22
+- **JDK:** Java 17 (Eclipse Adoptium Temurin recomendado)
 - **UI:** Jetpack Compose con Material 3
-- **Base de Datos:** Room 2.6.1 (con Kapt)
-- **Asincronía y reactividad:** Kotlin Coroutines & StateFlow
-- **Arquitectura:** MVVM (Model-View-ViewModel) con Clean Architecture (Use Cases)
-- **Compilación:** Gradle 8.10.2, Android Gradle Plugin 8.4.2
-- **JDK:** Java 17
+- **Base de Datos:** Room 2.6.1 (con exportación de esquemas y migraciones v1 -> v2)
+- **Gestión de Estado:** ViewModel con `StateFlow` y Coroutines
+- **Compilador / Build Tool:** Gradle 8.10.2 con Android Gradle Plugin 8.7.2
 
 ---
 
-## 📦 Descarga e Instalación del APK
+## 💻 Compilación y Ejecución de Pruebas
 
-El APK listo para instalar en cualquier móvil Android (Android 8.0 / API 26+) se encuentra generado en:
-
-```
-release/INotes-v1.0.0-debug.apk
-```
-
-O bien directamente tras compilar:
-```
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-### Cómo instalar en el móvil:
-1. Copia el archivo `INotes-v1.0.0-debug.apk` a tu teléfono (por cable, Drive, Telegram, etc.).
-2. Abre el archivo en el teléfono y selecciona **Instalar**.
-3. ¡Listo para probar!
-
----
-
-## 💻 Compilación desde código fuente
-
-Requisitos:
-- Java JDK 17
-- Android SDK (API 34/35)
+### 1. Compilación del APK Debug
 
 En Windows (PowerShell):
 ```powershell
 .\gradlew.bat assembleDebug
 ```
+El archivo ejecutable se genera en:
+- `app/build/outputs/apk/debug/app-debug.apk`
+- `release/INotes-v1.0.0-debug.apk`
 
-Para ejecutar las pruebas unitarias:
+### 2. Ejecución de Pruebas Unitarias (JVM)
 ```powershell
-.\gradlew.bat testDebugUnitTest
+.\gradlew.bat test
 ```
+
+### 3. Ejecución de Pruebas Instrumentadas en Dispositivo
+Con un dispositivo Android conectado mediante ADB:
+```powershell
+.\gradlew.bat connectedDebugAndroidTest
+```
+
+---
+
+## 📊 Estado del Proyecto
+
+- **Estado de compilación:** Estable (BUILD SUCCESSFUL).
+- **Pruebas JVM:** 8/8 PASA.
+- **Pruebas Instrumentadas:** 6/6 PASA (verificadas en Samsung SM-T580 y OnePlus CPH2579).
+- **Control de versiones:** Rama `main` en [GitHub - Itsbatt/INotes](https://github.com/Itsbatt/INotes).
+- Para un informe detallado de causas de crashes iniciales y matriz de verificación, consulta [`docs/pruebas.md`](docs/pruebas.md).
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está distribuido bajo la licencia MIT a nombre de **Itsbatt**. Consulta el archivo [LICENSE](LICENSE) para más información.
