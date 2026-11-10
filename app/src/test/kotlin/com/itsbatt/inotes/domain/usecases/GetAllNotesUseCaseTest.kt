@@ -1,45 +1,47 @@
 package com.itsbatt.inotes.domain.usecases
 
-import com.itsbatt.inotes.data.room.entities.Note
-import com.itsbatt.inotes.data.room.database.AppDatabase
 import com.itsbatt.inotes.data.room.dao.NoteDao
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
+import com.itsbatt.inotes.data.room.entities.Note
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.Mockito
-import org.mockito.junit.MockitoJUnitRunner
-import org.mockito.ArgumentMatchers
-import java.util.concurrent.TimeUnit
 
-@RunWith(MockitoJUnitRunner::class)
 class GetAllNotesUseCaseTest {
 
     @Test
-    fun `execute returns all notes from database`() {
-        // Set up Room in-memory database
-        val db = Room.inMemoryDatabaseBuilder(
-            /* application context */ null,
-            AppDatabase::class.java
-        ).build()
-        
-        try {
-            val noteDao = db.noteDao()
-            
-            // Add test notes
-            runBlocking {
-                noteDao.insertNote(Note(title = "Test Note 1", body = "Body 1"))
-                noteDao.insertNote(Note(title = "Test Note 2", body = "Body 2"))
-            }
-            
-            // Execute use case
-            val useCase = GetAllNotesUseCase(noteDao)
-            val notes = useCase.execute().firstOrValue()
-            
-            // Verify
-            assert(notes.size == 2) { "Expected 2 notes, got ${notes?.size}" }
-        } finally {
-            db.close()
+    fun executeReturnsAllNotes() = runTest {
+        val testNotes = listOf(
+            Note(id = 1, title = "Nota 1", body = "Texto 1"),
+            Note(id = 2, title = "Nota 2", body = "Texto 2")
+        )
+
+        val fakeDao = object : NoteDao {
+            override suspend fun insertNote(note: Note): Long = 1L
+            override suspend fun updateNote(note: Note) {}
+            override suspend fun deleteNote(note: Note) {}
+            override fun getAllNotes(): Flow<List<Note>> = flowOf(testNotes)
+            override suspend fun getAllNotesList(): List<Note> = testNotes
+            override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun searchNotes(query: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun searchNotesList(query: String): List<Note> = emptyList<Note>()
+            override suspend fun getNoteById(noteId: Long): Note? = null
+            override suspend fun deleteNoteById(noteId: Long) {}
+            override suspend fun setPin(noteId: Long, pinned: Boolean) {}
+            override suspend fun moveToTrash(noteId: Long, timestamp: Long) {}
+            override suspend fun restoreFromTrash(noteId: Long) {}
+            override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun emptyTrash() {}
         }
+
+        val useCase = GetAllNotesUseCase(fakeDao)
+        val result = useCase.execute().first()
+
+        assertEquals(2, result.size)
+        assertEquals("Nota 1", result[0].title)
+        assertEquals("Nota 2", result[1].title)
     }
 }

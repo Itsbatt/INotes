@@ -1,13 +1,9 @@
 package com.itsbatt.inotes.domain.usecases
 
-import com.itsbatt.inotes.data.room.entities.Note
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import com.itsbatt.inotes.data.room.dao.NoteDao
 
 class PinNoteUseCase(private val noteDao: NoteDao) {
-
-    fun execute(noteId: Int, pinned: Boolean): Flow<Note> {
-        noteDao.pinNote(noteId, pinned)
-        return flow(noteDao.getAllNotes()) // Simplified - in real app would return specific note
+    suspend fun execute(noteId: Long, pinned: Boolean) {
+        noteDao.setPin(noteId, pinned)
     }
 }

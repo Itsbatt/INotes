@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">INotes</string>
-    <string name="action_create_note">Create Note</string>
-    <string name="action_search">Search</string>
-    <string name="action_share">Share</string>
-    <string name="delete">Delete</string>
-    <string name="restore">Restore</string>
-    <string name="permanent_delete">Permanent Delete</string>
-    <string name="folder_created">Folder created</string>
-    <string name="folder_renamed">Folder renamed</string>
-    <string name="folder_deleted">Folder deleted</string>
-    <string name="notes">Notes</string>
-    <string name="no_notes">No notes</string>
-    <string name="search_hint">Search notes...</string>
-    <string name="pin">Pin</string>
-    <string name="unpin">Unpin</string>
-    <string name="export">Export</string>
-    <string name="export_success">Note exported</string>
-    <string name "folder_name_input">Folder name</string>
+    <string name="action_create_note">Crear nota</string>
+    <string name="action_search">Buscar</string>
+    <string name="action_share">Compartir</string>
+    <string name="delete">Eliminar</string>
+    <string name="restore">Restaurar</string>
+    <string name="permanent_delete">Eliminar definitivamente</string>
+    <string name="folder_created">Carpeta creada</string>
+    <string name="folder_renamed">Carpeta renombrada</string>
+    <string name="folder_deleted">Carpeta eliminada</string>
+    <string name="notes">Notas</string>
+    <string name="no_notes">No hay notas</string>
+    <string name="search_hint">Buscar en todas las notas...</string>
+    <string name="pin">Fijar</string>
+    <string name="unpin">Desfijar</string>
+    <string name="export">Exportar</string>
+    <string name="export_success">Nota exportada</string>
+    <string name="folder_name_input">Nombre de la carpeta</string>
+</resources>

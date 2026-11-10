@@ -11,13 +11,14 @@
     <color name="on_background">#000000</color>
 
     <!-- Background -->
-    <color name="background_light">#FFFFFF</color>
-    <color name="background_dark">#121212</color>
+    <color name="background_light">#F2F2F7</color>
+    <color name="background_dark">#000000</color>
 
     <!-- Surface -->
     <color name="surface_light">#FFFFFF</color>
-    <color name="surface_dark">#1E1E1E</color>
+    <color name="surface_dark">#1C1C1E</color>
 
     <!-- Divider -->
     <color name="divider_light">#E0E0E0</color>
     <color name="divider_dark">#333333</color>
+</resources>

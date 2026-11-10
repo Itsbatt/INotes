@@ -1,51 +1,62 @@
 package com.itsbatt.inotes.data.room.dao
 
-import android.arch.persistence.room.Dao
-import android.arch.persistence.room.Insert
-import android.arch.persistence.room.OnConflictStrategy
-import android.arch.persistence.room.Query
-import com.itsbatt.inotes.data.room.entities.Folder
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
 import com.itsbatt.inotes.data.room.entities.Note
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface NoteDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertNote(note: Note)
+    suspend fun insertNote(note: Note): Long
 
-    @Query("SELECT * FROM note ORDER BY updatedAt DESC")
-    suspend fun getAllNotes(): List<Note>
+    @Update
+    suspend fun updateNote(note: Note)
 
-    @Query("SELECT * FROM note WHERE isPinned = 1 ORDER BY updatedAt DESC")
-    suspend fun getPinnedNotes(): List<Note>
+    @Delete
+    suspend fun deleteNote(note: Note)
 
-    @Query("SELECT * FROM note WHERE folder = :folderName ORDER BY updatedAt DESC")
-    suspend fun getNotesByFolder(folderName: String): List<Note>
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 ORDER BY updatedAt DESC")
+    fun getAllNotes(): Flow<List<Note>>
 
-    @Query("SELECT * FROM note WHERE title LIKE :query OR body LIKE :query ORDER BY updatedAt DESC")
-    suspend fun searchNotes(query: String): List<Note>
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 ORDER BY updatedAt DESC")
+    suspend fun getAllNotesList(): List<Note>
 
-    @Query("DELETE FROM note")
-    suspend fun deleteAllNotes()
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 AND isPinned = 1 ORDER BY updatedAt DESC")
+    fun getPinnedNotes(): Flow<List<Note>>
 
-    @Query("DELETE FROM note WHERE id = :noteId")
-    suspend fun deleteNote(noteId: Int)
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 AND folder = :folderName ORDER BY updatedAt DESC")
+    fun getNotesByFolder(folderName: String): Flow<List<Note>>
 
-    @Query("UPDATE note SET isPinned = :pinned WHERE id = :noteId")
-    suspend fun pinNote(noteId: Int, pinned: Boolean)
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 AND (title LIKE '%' || :query || '%' OR body LIKE '%' || :query || '%') ORDER BY updatedAt DESC")
+    fun searchNotes(query: String): Flow<List<Note>>
 
-    @Query("SELECT * FROM note WHERE updatedAt >= :start AND updatedAt <= :end ORDER BY updatedAt DESC")
-    suspend fun getNotesInDateRange(start: Long, end: Long): List<Note>
+    @Query("SELECT * FROM notes WHERE isDeleted = 0 AND (title LIKE '%' || :query || '%' OR body LIKE '%' || :query || '%') ORDER BY updatedAt DESC")
+    suspend fun searchNotesList(query: String): List<Note>
 
-    @Query("SELECT COUNT(*) FROM note WHERE DATE(updatedAt) = CURRENT_DATE")
-    suspend fun getTodayCount(): Int
+    @Query("SELECT * FROM notes WHERE id = :noteId LIMIT 1")
+    suspend fun getNoteById(noteId: Long): Note?
 
-    @Query("SELECT COUNT(*) FROM note WHERE DATE(updatedAt) = DATE(CURRENT_DATE, '-1 day')")
-    suspend fun getYesterdayCount(): Int
+    @Query("DELETE FROM notes WHERE id = :noteId")
+    suspend fun deleteNoteById(noteId: Long)
 
-    @Query("SELECT COUNT(*) FROM note WHERE DATE(updatedAt) >= DATE(CURRENT_DATE, '-7 day')")
-    suspend fun getThisWeekCount(): Int
+    @Query("UPDATE notes SET isPinned = :pinned WHERE id = :noteId")
+    suspend fun setPin(noteId: Long, pinned: Boolean)
 
-    @Query("SELECT COUNT(*) FROM note WHERE DATE(updatedAt) >= DATE(CURRENT_DATE, '-30 day')")
-    suspend fun getThisMonthCount(): Int
+    @Query("UPDATE notes SET isDeleted = 1, deletedAt = :timestamp WHERE id = :noteId")
+    suspend fun moveToTrash(noteId: Long, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE notes SET isDeleted = 0, deletedAt = NULL WHERE id = :noteId")
+    suspend fun restoreFromTrash(noteId: Long)
+
+    @Query("SELECT * FROM notes WHERE isDeleted = 1 ORDER BY deletedAt DESC")
+    fun getDeletedNotes(): Flow<List<Note>>
+
+    @Query("DELETE FROM notes WHERE isDeleted = 1")
+    suspend fun emptyTrash()
 }

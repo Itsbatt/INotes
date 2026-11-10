@@ -1,52 +1,45 @@
 package com.itsbatt.inotes.domain.usecases
 
+import com.itsbatt.inotes.data.room.dao.NoteDao
 import com.itsbatt.inotes.data.room.entities.Note
-import com.itsbatt.inotes.data.room.database.AppDatabase
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.Mockito
-import org.mockito.junit.MockitoJUnitRunner
-import java.util.concurrent.TimeUnit
 
-@RunWith(MockitoJUnitRunner::class)
 class SearchNotesUseCaseTest {
 
     @Test
-    fun `execute filters notes by search query`() {
-        val db = Room.inMemoryDatabaseBuilder(
-            /* application context */ null,
-            AppDatabase::class.java
-        ).build()
-        
-        try {
-            val noteDao = db.noteDao()
-            
-            runBlocking {
-                noteDao.insertNote(Note(title = "Meeting", body = "Project discussion"))
-                noteDao.insertNote(Note(title = "Shopping", body = "Milk and eggs"))
-                noteDao.insertNote(Note(title = "Meeting follow-up", body = "Call client"))
-            }
-            
-            val useCase = SearchNotesUseCase(noteDao)
-            
-            // Search for "meeting"
-            val results = runBlocking {
-                useCase.execute("meeting").firstOrValue()
-            }
-            
-            // Should find 2 notes with "meeting" in title
-            assert(results?.size == 2) { "Expected 2 results, got ${results?.size}" }
-            
-            // Verify titles contain "meeting"
-            results?.forEach { note ->
-                assert(note.title.contains("meeting", ignoreCase = true)) {
-                    "Note title should contain 'meeting': ${note.title}"
-                }
-            }
-        } finally {
-            db.close()
+    fun executeFiltersNotes() = runTest {
+        val matchingNotes = listOf(
+            Note(id = 1, title = "Idea importante", body = "Texto")
+        )
+
+        val fakeDao = object : NoteDao {
+            override suspend fun insertNote(note: Note): Long = 1L
+            override suspend fun updateNote(note: Note) {}
+            override suspend fun deleteNote(note: Note) {}
+            override fun getAllNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun getAllNotesList(): List<Note> = emptyList<Note>()
+            override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun searchNotes(query: String): Flow<List<Note>> = flowOf(matchingNotes)
+            override suspend fun searchNotesList(query: String): List<Note> = matchingNotes
+            override suspend fun getNoteById(noteId: Long): Note? = null
+            override suspend fun deleteNoteById(noteId: Long) {}
+            override suspend fun setPin(noteId: Long, pinned: Boolean) {}
+            override suspend fun moveToTrash(noteId: Long, timestamp: Long) {}
+            override suspend fun restoreFromTrash(noteId: Long) {}
+            override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun emptyTrash() {}
         }
+
+        val useCase = SearchNotesUseCase(fakeDao)
+        val result = useCase.execute("importante").first()
+
+        assertEquals(1, result.size)
+        assertEquals("Idea importante", result[0].title)
     }
 }

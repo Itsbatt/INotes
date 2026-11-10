@@ -1,43 +1,90 @@
-# INotes
+# INotes 📝
 
-Aplicación de notas para Android con aspecto inspirado en la app Notas de iPhone.
+Aplicación moderna de notas para Android con diseño y experiencia de usuario inspirados en la app **Notas de iOS (iPhone)**.
 
-## Descripción
+---
 
-INotes es una aplicación de toma de notas local y offline, diseñada para ofrecer una experiencia similar a las Notas de iPhone. Todas las notas se guardan localmente en el dispositivo, sin requerir cuentas, red o sincronización.
+## 📱 Características principales
 
-## Características
+1. **Estética iOS Notes**:
+   - Paleta de colores oficial con acento amarillo (`#EAA824`).
+   - Tarjetas agrupadas con bordes redondeados y separadores sutiles estilo iOS.
+   - Tipografía refinada y modo oscuro / claro automático según el sistema.
+2. **Organización inteligente por fechas y estados**:
+   - Sección destacada para notas **Fijadas**.
+   - Agrupación automática temporal: **Hoy**, **Ayer**, **Últimos 7 días**, **Este mes** y **Anteriores**.
+3. **Gestión completa de carpetas**:
+   - Vista de carpetas: "Todas las notas", carpetas personalizadas y "Papelera".
+   - Crear, renombrar y eliminar carpetas.
+   - Contadores en tiempo real de notas por carpeta.
+4. **Editor fluido**:
+   - Edición de título y cuerpo.
+   - Guardado automático reactivo (debounced) y botón "Listo".
+   - Encabezado con fecha y hora exacta formateada.
+5. **Papelera y reciclaje**:
+   - Mover notas a la papelera sin perderlas.
+   - Restaurar notas o eliminarlas definitivamente.
+   - Opción de vaciar papelera con un toque.
+6. **Búsqueda en tiempo real**:
+   - Búsqueda instantánea en títulos y cuerpo de las notas.
+7. **Acciones rápidas**:
+   - Fijar/Desfijar notas.
+   - Compartir notas como texto a través de cualquier app (WhatsApp, Telegram, correo, etc.).
+8. **100% Local y Privado**:
+   - Base de datos Room offline en el dispositivo. Sin cuentas, sin rastreo y sin conexión a internet requerida.
 
-1. **Lista de notas agrupadas por fecha**: Hoy, Ayer, Esta semana, Mes y año
-2. **Titulo grande al estilo iOS**: Se compacta al hacer scroll
-3. **Editor de nota con título y cuerpo**: Guardado automático con debounce corto
-4. **Carpetas**: Crear, renombrar y borrar (las notas se mueven a "Notas" al borrar carpeta)
-5. **Fijar nota**: Mantiene la nota arriba de la lista
-6. **Búsqueda por título y cuerpo**
-7. **Borrar con gesto**: Papelera durante 30 días antes del borrado definitivo
-8. **Modo claro y oscuro**: Según la preferencia del sistema
-9. **Compartir nota**: Exportar como texto mediante el menú de compartir de Android
+---
 
-## Requisitos
+## 🛠️ Tecnologías y Arquitectura
 
-- Android mínimo 10 (API 29)
-- Kotlin 1.9.x
-- JDK 11+
+- **Lenguaje:** Kotlin 1.9.22
+- **UI:** Jetpack Compose con Material 3
+- **Base de Datos:** Room 2.6.1 (con Kapt)
+- **Asincronía y reactividad:** Kotlin Coroutines & StateFlow
+- **Arquitectura:** MVVM (Model-View-ViewModel) con Clean Architecture (Use Cases)
+- **Compilación:** Gradle 8.10.2, Android Gradle Plugin 8.4.2
+- **JDK:** Java 17
 
-## Cómo compilar
+---
 
-```bash
-# Desde la raíz del proyecto
-cd app
-./gradlew assembleDebug
+## 📦 Descarga e Instalación del APK
+
+El APK listo para instalar en cualquier móvil Android (Android 8.0 / API 26+) se encuentra generado en:
+
+```
+release/INotes-v1.0.0-debug.apk
 ```
 
-La APK debug se generará en `app/build/outputs/apk/debug/app-debug.apk`.
+O bien directamente tras compilar:
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
 
-## Estado del proyecto
+### Cómo instalar en el móvil:
+1. Copia el archivo `INotes-v1.0.0-debug.apk` a tu teléfono (por cable, Drive, Telegram, etc.).
+2. Abre el archivo en el teléfono y selecciona **Instalar**.
+3. ¡Listo para probar!
 
-En desarrollo activo. Versión 1.0.0.
+---
 
-## Capturas
+## 💻 Compilación desde código fuente
 
-_(Añadir capturas de pantalla aquí)_
+Requisitos:
+- Java JDK 17
+- Android SDK (API 34/35)
+
+En Windows (PowerShell):
+```powershell
+.\gradlew.bat assembleDebug
+```
+
+Para ejecutar las pruebas unitarias:
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.

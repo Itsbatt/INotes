@@ -1,16 +1,18 @@
 package com.itsbatt.inotes.data.room.entities
 
-import android.arch.persistence.room.Entity
-import android.arch.persistence.room.PrimaryKey
-import java.util.Date
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 
-@Entity(exportSchema = true)
+@Entity(tableName = "notes")
 data class Note(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
     val title: String = "",
     val body: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    var isPinned: Boolean = false,
-    var folder: String = "Notas"  // Default folder name
+    val isPinned: Boolean = false,
+    val folder: String = "Notas",
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null
 )

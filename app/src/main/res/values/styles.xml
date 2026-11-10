@@ -1,22 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <!-- Base application theme. -->
-    <style name="Theme.INotes" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/yellow_accent</item>
-        <item name="colorOnPrimary">#000000</item>
-        <!-- Secondary color. -->
-        <item name="colorSecondary">@color/yellow_accent</item>
-        <item name="colorOnSecondary">#000000</item>
-        <!-- Background color. -->
-        <item name="android:colorBackground">@color/background_light</item>
-        <item name="android:colorSurface">@color/surface_light</item>
-        <item name="colorOnBackground">@color/on_background</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        <!-- Material 3 enabled dark theme colors -->
-        <item name="colorSurface">@color/surface_dark</item>
-        <item name="colorBackground">@color/background_dark</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+    <style name="Theme.INotes" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/background_light</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
+</resources>

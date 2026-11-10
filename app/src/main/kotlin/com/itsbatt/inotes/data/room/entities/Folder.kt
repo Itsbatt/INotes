@@ -1,12 +1,12 @@
 package com.itsbatt.inotes.data.room.entities
 
-import android.arch.persistence.room.Entity
-import android.arch.persistence.room.PrimaryKey
-import java.util.Date
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 
-@Entity(exportSchema = true)
+@Entity(tableName = "folders")
 data class Folder(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
     val name: String,
     val createdAt: Long = System.currentTimeMillis()
 )

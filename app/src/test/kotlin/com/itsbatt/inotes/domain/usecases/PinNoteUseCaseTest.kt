@@ -1,47 +1,46 @@
 package com.itsbatt.inotes.domain.usecases
 
+import com.itsbatt.inotes.data.room.dao.NoteDao
 import com.itsbatt.inotes.data.room.entities.Note
-import com.itsbatt.inotes.data.room.database.AppDatabase
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.Mockito
-import org.mockito.junit.MockitoJUnitRunner
 
-@RunWith(MockitoJUnitRunner::class)
 class PinNoteUseCaseTest {
 
     @Test
-    fun `togglePin updates note pinned status`() {
-        val db = Room.inMemoryDatabaseBuilder(
-            /* application context */ null,
-            AppDatabase::class.java
-        ).build()
-        
-        try {
-            val noteDao = db.noteDao()
-            
-            runBlocking {
-                noteDao.insertNote(Note(title = "Test Note", body = "Body", isPinned = false))
+    fun executeTogglesPin() = runTest {
+        var pinnedId: Long? = null
+        var pinnedState: Boolean? = null
+
+        val fakeDao = object : NoteDao {
+            override suspend fun insertNote(note: Note): Long = 1L
+            override suspend fun updateNote(note: Note) {}
+            override suspend fun deleteNote(note: Note) {}
+            override fun getAllNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun getAllNotesList(): List<Note> = emptyList<Note>()
+            override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun searchNotes(query: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun searchNotesList(query: String): List<Note> = emptyList<Note>()
+            override suspend fun getNoteById(noteId: Long): Note? = null
+            override suspend fun deleteNoteById(noteId: Long) {}
+            override suspend fun setPin(noteId: Long, pinned: Boolean) {
+                pinnedId = noteId
+                pinnedState = pinned
             }
-            
-            val useCase = PinNoteUseCase(noteDao)
-            
-            // Toggle pin
-            runBlocking {
-                useCase.execute(1, true)
-            }
-            
-            // Verify the note is now pinned
-            val notes = runBlocking {
-                noteDao.getAllNotes()
-            }
-            
-            assert(notes.size == 1) { "Expected 1 note" }
-            assert(notes[0].isPinned == true) { "Expected note to be pinned" }
-        } finally {
-            db.close()
+            override suspend fun moveToTrash(noteId: Long, timestamp: Long) {}
+            override suspend fun restoreFromTrash(noteId: Long) {}
+            override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun emptyTrash() {}
         }
+
+        val useCase = PinNoteUseCase(fakeDao)
+        useCase.execute(42L, true)
+
+        assertEquals(42L, pinnedId)
+        assertEquals(true, pinnedState)
     }
 }

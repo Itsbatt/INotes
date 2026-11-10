@@ -1,136 +1,180 @@
 package com.itsbatt.inotes.ui
 
 import android.app.Application
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsbatt.inotes.INotesApplication
+import com.itsbatt.inotes.data.room.entities.Folder
 import com.itsbatt.inotes.data.room.entities.Note
-import com.itsbatt.inotes.data.room.database.AppDatabase
-import com.itsbatt.inotes.domain.usecases.GetAllNotesUseCase
-import com.itsbatt.inotes.domain.usecases.PinNoteUseCase
-import com.itsbatt.inotes.domain.usecases.SearchNotesUseCase
-import com.itsbatt.inotes.data.room.dao.FolderDao
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.takeUntil
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class MainViewModel(application: Application) : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val appDatabase = AppDatabase.getInstance(application)
+    private val db = (application as INotesApplication).database
+    private val noteDao = db.noteDao()
+    private val folderDao = db.folderDao()
 
-    // Use cases with internal database reference
-    private val noteDao = appDatabase.noteDao()
-    private val folderDao = appDatabase.folderDao()
+    val allFolders: StateFlow<List<Folder>> = folderDao.getAllFolders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _getAllNotesUseCase = GetAllNotesUseCase(noteDao)
-    private val _pinNoteUseCase = PinNoteUseCase(noteDao)
-    private val _searchNotesUseCase = SearchNotesUseCase(noteDao)
-    private val _folderDao = FolderDao(folderDao)
+    val allNotes: StateFlow<List<Note>> = noteDao.getAllNotes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Notes state - grouped by date
-    private val _notes = MutableStateFlow<List<Note>>(emptyList())
-    val notes: StateFlow<List<Note>> = _notes.asStateFlow()
+    val deletedNotes: StateFlow<List<Note>> = noteDao.getDeletedNotes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Search state
+    private val _selectedFolder = MutableStateFlow("Todas las notas")
+    val selectedFolder: StateFlow<String> = _selectedFolder.asStateFlow()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // Folders state
-    private val _folders = MutableStateFlow<List<String>>(listOf("Notas"))
-    val folders: StateFlow<List<String>> = _folders.asStateFlow()
+    private val _isTrashMode = MutableStateFlow(false)
+    val isTrashMode: StateFlow<Boolean> = _isTrashMode.asStateFlow()
 
-    // Selected folder
-    private val _selectedFolder = MutableStateFlow<String>("Notas")
-    val selectedFolder: StateFlow<String> = _selectedFolder.asStateFlow()
+    val displayedNotes: StateFlow<List<Note>> = combine(
+        allNotes,
+        deletedNotes,
+        _selectedFolder,
+        _searchQuery,
+        _isTrashMode
+    ) { notes, trashNotes, folder, query, inTrash ->
+        val sourceList = if (inTrash) trashNotes else notes
+        val filteredByFolder = if (inTrash || folder == "Todas las notas") {
+            sourceList
+        } else {
+            sourceList.filter { it.folder.equals(folder, ignoreCase = true) }
+        }
 
-    // Pinned notes
-    private val _pinnedNotes = MutableStateFlow<List<Note>>(emptyList())
-    val pinnedNotes: StateFlow<List<Note>> = _pinnedNotes.asStateFlow()
+        if (query.isBlank()) {
+            filteredByFolder
+        } else {
+            val q = query.trim().lowercase()
+            filteredByFolder.filter {
+                it.title.lowercase().contains(q) || it.body.lowercase().contains(q)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // UI actions
+    init {
+        viewModelScope.launch {
+            // Seed default folder if empty
+            val defaultName = "Notas"
+            if (folderDao.getFolderByName(defaultName) == null) {
+                folderDao.insertFolder(Folder(name = defaultName))
+            }
+        }
+    }
+
+    fun selectFolder(folderName: String) {
+        _isTrashMode.value = false
+        _selectedFolder.value = folderName
+    }
+
+    fun openTrash() {
+        _isTrashMode.value = true
+        _selectedFolder.value = "Papelera"
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    fun setSelectedFolder(folder: String) {
-        _selectedFolder.value = folder
-        loadNotesForFolder(folder)
-    }
-
-    fun togglePin(noteId: Int) {
-        _pinNoteUseCase.execute(noteId, !isNotePinned(noteId))
-        loadNotes()
-    }
-
-    fun createNote(title: String, body: String) {
-        val note = Note(title = title, body = body)
-        noteDao.insertNote(note)
-        loadNotes()
-    }
-
-    fun deleteNote(noteId: Int) {
-        // Move to trash - set folder to "Trash" or mark as deleted
-        val note = _notes.value?.firstOrDefault { it.id == noteId }
-        note?.let { n ->
-            n.folder = "Notas"  // Move to Notes (not trash, but reset)
-            noteDao.insertNote(n)  // This replaces due to REPLACE strategy
-        }
-        loadNotes()
-    }
-
-    fun restoreFromTrash(noteId: Int) {
-        // Restore from "trash" - basically just reload
-        loadNotes()
-    }
-
-    private fun loadNotes() {
-        val allNotes = _getAllNotesUseCase.execute()
-        _notes.value = allNotes
-        loadPinnedNotes()
-        updateFolderLabels(allNotes)
-    }
-
-    private fun loadPinnedNotes() {
-        val pinned = _notes.value?.filter { it.isPinned } ?: emptyList()
-        _pinnedNotes.value = pinned
-    }
-
-    private fun updateFolderLabels(notes: List<Note>) {
-        // Update folder labels based on notes
-        val folderNames = notes.map { it.folder }.toSet()
-        var updatedFolders = folderNames.toList()
-        if (!updatedFolders.contains("Notas")) {
-            updatedFolders = "Notas" :: updatedFolders
-        }
-        _folders.value = updatedFolders
-    }
-
-    fun addFolder(name: String) {
-        // Add folder to state (database fold Dao would also need insert)
-        _folders.value = _folders.value + name
-    }
-
-    fun renameFolder(oldName: String, newName: String) {
-        _folders.value = _folders.value.map {
-            if (it == oldName) newName else it
+    fun saveNote(id: Long, title: String, body: String, folder: String = "Notas", onSaved: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val targetFolder = if (folder == "Todas las notas" || folder == "Papelera") "Notas" else folder
+            val now = System.currentTimeMillis()
+            if (id == 0L) {
+                val newNote = Note(
+                    title = title,
+                    body = body,
+                    createdAt = now,
+                    updatedAt = now,
+                    folder = targetFolder
+                )
+                val newId = noteDao.insertNote(newNote)
+                onSaved(newId)
+            } else {
+                val existing = noteDao.getNoteById(id)
+                val updatedNote = existing?.copy(
+                    title = title,
+                    body = body,
+                    updatedAt = now,
+                    folder = targetFolder
+                ) ?: Note(
+                    id = id,
+                    title = title,
+                    body = body,
+                    createdAt = now,
+                    updatedAt = now,
+                    folder = targetFolder
+                )
+                noteDao.insertNote(updatedNote)
+                onSaved(id)
+            }
         }
     }
 
-    fun removeFolder(name: String) {
-        // Move notes from this folder to "Notas"
-        _folders.value = _folders.value.filter { it != name }
-        // Update notes folder label
-        val currentNotes = _notes.value ?: emptyList()
-        val updatedNotes = currentNotes.map { note ->
-            if (note.folder == name) note.copy(folder = "Notas") else note
+    fun togglePin(note: Note) {
+        viewModelScope.launch {
+            noteDao.setPin(note.id, !note.isPinned)
         }
-        _notes.value = updatedNotes
     }
 
-    private fun isNotePinned(noteId: Int): Boolean {
-        return _notes.value?.any { it.id == noteId && it.isPinned } == true
+    fun moveToTrash(noteId: Long) {
+        viewModelScope.launch {
+            noteDao.moveToTrash(noteId)
+        }
+    }
+
+    fun restoreFromTrash(noteId: Long) {
+        viewModelScope.launch {
+            noteDao.restoreFromTrash(noteId)
+        }
+    }
+
+    fun deletePermanently(noteId: Long) {
+        viewModelScope.launch {
+            noteDao.deleteNoteById(noteId)
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            noteDao.emptyTrash()
+        }
+    }
+
+    fun createFolder(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            if (folderDao.getFolderByName(trimmed) == null) {
+                folderDao.insertFolder(Folder(name = trimmed))
+            }
+        }
+    }
+
+    fun renameFolder(folderId: Long, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            folderDao.renameFolder(folderId, trimmed)
+        }
+    }
+
+    fun deleteFolder(folder: Folder) {
+        viewModelScope.launch {
+            folderDao.deleteFolder(folder)
+            if (_selectedFolder.value == folder.name) {
+                _selectedFolder.value = "Todas las notas"
+            }
+        }
     }
 }
