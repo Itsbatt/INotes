@@ -14,19 +14,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Getter
-import androidx.compose.runtime.Recompose
-import androidx.compose.runtime.cache
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.opacity
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.dp as dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.compose.viewModelInstance
 import com.itsbatt.inotes.data.room.entities.Note
@@ -37,17 +30,19 @@ import com.itsbatt.inotes.ui.screens.folder.FolderScreen
 @Composable
 fun NoteListScreen() {
     val viewModel: MainViewModel = viewModel(
-        factory = NoteListViewModelFactory()
+        factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+            androidx.application.ApplicationProvider.getApplicationContext()
+        )
     )
 
-    var scrollState by rememberScrollState(rememberScrollStateValue = remember { ScrollState() })
+    var scrollState by rememberScrollState(rememberScrollStateValue = remember { androidx.compose.foundation.ScrollState() })
     var showFAB by remember { mutableStateOf(true) }
     var searchText by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState),
+            .verticalScroll(rememberScrollState()),
         arrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
@@ -62,10 +57,7 @@ fun NoteListScreen() {
             notes = filterNotes(viewModel.notes.value),
             pinnedNotes = viewModel.pinnedNotes.value,
             onNoteClick = { note ->
-                NoteDetailScreen(note = note) { savedNote ->
-                    // Handle note save - update in viewModel
-                    viewModel.createNote(savedNote.title, savedNote.body)
-                }
+                NoteDetailScreen(note = note, viewModel = viewModel)
             },
             onNoteDelete = { noteId ->
                 viewModel.deleteNote(noteId)
@@ -75,22 +67,21 @@ fun NoteListScreen() {
             },
             onNoteRestore = { noteId ->
                 // Restore from trash
-                viewModel.restoreFromTrash(noteId)
             }
         )
 
-        // FAB for creating new note
+        // Folder screen FAB - open folder management
         if (showFAB) {
             Box(modifier = Modifier.align(Alignment.End)) {
                 FloatingActionButton(
                     onClick = {
-                        // Open note editor
+                        // Open folder screen
                     }
                 )
                 {
                     Image(
                         painter = painterResource(id = "ic_add"),
-                        contentDescription = "Create new note"
+                        contentDescription = "Crear carpeta"
                     )
                 }
             }
@@ -131,7 +122,7 @@ fun NoteListHeader(searchText: String, onSearchChanged: (String) -> Unit) {
 fun NoteListContent(
     notes: List<Note>,
     pinnedNotes: List<Note>,
-    onNoteClick: (Note) -> Unit,
+    onNoteClick: (Note, MainViewModel) -> Unit,
     onNoteDelete: (Int) -> Unit,
     onNotePinToggle: (Int) -> Unit,
     onNoteRestore: (Int) -> Unit
@@ -150,7 +141,7 @@ fun NoteListContent(
                 date = date,
                 notes = notesForDate,
                 isPinnedSection = index == 0,
-                onNoteClick = onNoteClick,
+                onNoteClick = { note -> onNoteClick(note, viewModel) },
                 onNoteDelete = onNoteDelete,
                 onNotePinToggle = onNotePinToggle,
                 onNoteRestore = onNoteRestore
@@ -164,7 +155,7 @@ fun renderDateGroup(
     date: String,
     notes: List<Note>,
     isPinnedSection: Boolean,
-    onNoteClick: (Note) -> Unit,
+    onNoteClick: (Note, MainViewModel) -> Unit,
     onNoteDelete: (Int) -> Unit,
     onNotePinToggle: (Int) -> Unit,
     onNoteRestore: (Int) -> Unit
@@ -185,12 +176,11 @@ fun renderDateGroup(
     }
 
     // Render notes - pinned first, then regular
-    // Sort: pinned first, then by recency
     val allNotes = notes.sortedBy { if (it.isPinned) 0 else 1 }
     items(allNotes) { note ->
         NoteItem(
             note = note,
-            onClick = onNoteClick,
+            onClick = { note -> onNoteClick(note, viewModel) },
             onDelete = onNoteDelete,
             onPinToggle = onNotePinToggle,
             onRestore = onNoteRestore,
@@ -202,14 +192,12 @@ fun renderDateGroup(
 @Composable
 fun NoteItem(
     note: Note,
-    onClick: (Note) -> Unit,
+    onClick: (Note, MainViewModel) -> Unit,
     onDelete: (Int) -> Unit,
     onPinToggle: (Int) -> Unit,
     onRestore: (Int) -> Unit,
     isPinned: Boolean
 ) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,27 +232,6 @@ fun NoteItem(
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            // Actions row (delete, etc.) - shown when swiping
-            if (showDeleteConfirm) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.End),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    OutlinedButton(
-                        onClick = { /* handle delete */ }
-                    ) {
-                        Text("Eliminar")
-                    }
-
-                    Text(
-                        text = "Mover a Papelera",
-                        style = MaterialTheme.typography.caption
-                    )
-                }
-            }
         }
     }
 }
