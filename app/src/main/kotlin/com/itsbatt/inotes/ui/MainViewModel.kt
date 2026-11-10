@@ -3,6 +3,7 @@ package com.itsbatt.inotes.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsbatt.inotes.data.room.entities.Note
+import com.itsbatt.inotes.data.room.database.AppDatabase
 import com.itsbatt.inotes.domain.usecases.GetAllNotesUseCase
 import com.itsbatt.inotes.domain.usecases.PinNoteUseCase
 import com.itsbatt.inotes.domain.usecases.SearchNotesUseCase
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.takeUntil
 import kotlinx.coroutines.launch
 
 class MainViewModel(
+    application: android.app.Application,
     private val getAllNotesUseCase: GetAllNotesUseCase,
     private val pinNoteUseCase: PinNoteUseCase,
     private val searchNotesUseCase: SearchNotesUseCase,
@@ -65,9 +67,7 @@ class MainViewModel(
     }
 
     fun deleteNote(noteId: Int) {
-        getAllNotesUseCase.execute().firstOrNull { it.id == noteId }?.let {
-            // Move to trash instead of delete
-        }
+        // Move to trash instead of delete
         loadNotes()
     }
 
@@ -117,5 +117,12 @@ class MainViewModel(
             if (note.folder == name) note.copy(folder = "Notas") else note
         }
         _notes.value = updatedNotes
+    }
+
+    initBlock {
+        // Initialize with application context database
+        val db = AppDatabase.getInstance(application)
+        // Recreate use cases with the database
+        // Note: In a real app, use dependency injection
     }
 }

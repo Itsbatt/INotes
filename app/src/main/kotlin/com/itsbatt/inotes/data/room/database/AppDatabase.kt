@@ -3,6 +3,7 @@ package com.itsbatt.inotes.data.room.database
 import android.arch.persistence.room.Database
 import android.arch.persistence.room.Migration
 import android.arch.persistence.room.RoomDatabase
+import android.content.Context
 import com.itsbatt.inotes.data.room.entities.Folder
 import com.itsbatt.inotes.data.room.entities.Note
 
@@ -11,6 +12,24 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun noteDao(): com.itsbatt.inotes.data.room.dao.NoteDao
     abstract fun folderDao(): com.itsbatt.inotes.data.room.dao.FolderDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase {
+            if (INSTANCE == null) {
+                synchronized(AppDatabase::class.java) {
+                    INSTANCE ??= Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        "inotes-db"
+                    ).build()
+                }
+            }
+            return INSTANCE!!
+        }
+    }
 
     // Migration 1 -> 2: Add isPinned to Note
     @Migration(from = 1, to = 2)
