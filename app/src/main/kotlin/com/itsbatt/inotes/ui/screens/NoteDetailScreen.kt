@@ -24,20 +24,21 @@ import androidx.compose.ui.unit.dp
 import com.itsbatt.inotes.data.room.entities.Note
 import com.itsbatt.inotes.ui.MainViewModel
 
-// Debounce helper for auto-save
-val CoroutineScope.debounceAutoSave = kotlin.coroutines.jvm.internal.ContinuationImpl.capture KotlinExtensionReifiedTypeVar = this
-
 @Composable
-fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
+fun NoteDetailScreen(
+    note: Note,
+    viewModel: MainViewModel,
+    onSaved: (Note) -> Unit = {},
+    onDelete: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
     var titleValue by remember { mutableStateOf(note.title) }
     var bodyValue by remember { mutableStateOf(note.body) }
     var saveLaunched by remember { mutableStateOf(false) }
 
-    // Debounced save - triggered after user stops typing
+    // Debounced auto-save
     LaunchedEffect(titleValue, bodyValue) {
-        // Wait 1.5 seconds after last change before saving
         delay(1500)
-        // Only save if values haven't changed since we started
         if (!saveLaunched) {
             saveLaunched = true
             val updatedNote = note.copy(
@@ -45,7 +46,7 @@ fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
                 body = bodyValue,
                 updatedAt = System.currentTimeMillis()
             )
-            onSaved(updatedNote)
+            viewModel.createNote(updatedNote.title, updatedNote.body)
         }
     }
 
@@ -53,7 +54,7 @@ fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Top,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
         // Toolbar with back button and share
@@ -61,10 +62,10 @@ fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
         ) {
             IconButton(
-                onClick = { /* go back */ }
+                onClick = onBack
             ) {
                 Icon(
                     imageVector = androidx.compose.ui.vectors.family.FamilyVector.Companion.dpBack,
@@ -102,8 +103,8 @@ fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
                 .padding(bottom = 4.dp),
             style = MaterialTheme.typography.h6,
             label = { Text("Titulo") },
-            keyboardOptions = keyboardOptions(
-                immEditorAction = "done"
+            keyboardOptions = androidx.compose.ui.input.keyboard.KeyboardOptions(
+                imEditorAction = "done"
             ),
             singleLine = true,
             maxLines = 1
@@ -123,7 +124,7 @@ fun NoteDetailScreen(note: Note, onSaved: (Note) -> Unit = {}) {
                     // Save and dismiss - the debounced effect will handle it
                 }
             ),
-            softKeys = KeyboardSoftKeys.Default
+            softKeys = androidx.compose.ui.softkeyboard.KeyboardSoftKeys.Default
         )
 
         // Save button (manual save)
