@@ -1,13 +1,23 @@
 package com.itsbatt.inotes.data.room
 
+import com.itsbatt.inotes.data.room.database.AppDatabase
 import com.itsbatt.inotes.data.room.entities.Folder
 import com.itsbatt.inotes.data.room.entities.Note
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class RoomEntityTest {
+class RoomMigrationTest {
+
+    @Test
+    fun testMigration1To2Definition() {
+        val migration = AppDatabase.MIGRATION_1_2
+        assertNotNull(migration)
+        assertEquals(1, migration.startVersion)
+        assertEquals(2, migration.endVersion)
+    }
 
     @Test
     fun testNoteEntityDefaultValues() {

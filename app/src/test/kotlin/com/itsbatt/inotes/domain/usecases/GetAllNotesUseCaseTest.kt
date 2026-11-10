@@ -20,26 +20,23 @@ class GetAllNotesUseCaseTest {
 
         val fakeDao = object : NoteDao {
             override suspend fun insertNote(note: Note): Long = 1L
-            override suspend fun insertNotes(notes: List<Note>): List<Long> = emptyList()
             override suspend fun updateNote(note: Note) {}
             override suspend fun deleteNote(note: Note) {}
             override fun getAllNotes(): Flow<List<Note>> = flowOf(testNotes)
             override suspend fun getAllNotesList(): List<Note> = testNotes
             override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList())
-            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList())
+            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(testNotes)
             override fun searchNotes(query: String): Flow<List<Note>> = flowOf(emptyList())
             override suspend fun searchNotesList(query: String): List<Note> = emptyList()
             override suspend fun getNoteById(noteId: Long): Note? = null
             override suspend fun deleteNoteById(noteId: Long) {}
-            override suspend fun deleteNotesByIds(noteIds: List<Long>) {}
             override suspend fun setPin(noteId: Long, pinned: Boolean) {}
             override suspend fun moveToTrash(noteId: Long, timestamp: Long) {}
-            override suspend fun moveToTrashBatch(noteIds: List<Long>, timestamp: Long) {}
             override suspend fun restoreFromTrash(noteId: Long) {}
-            override suspend fun moveNotesToFolder(noteIds: List<Long>, targetFolder: String) {}
             override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList())
             override suspend fun emptyTrash() {}
-            override suspend fun getAllNotesRaw(): List<Note> = testNotes
+            override suspend fun purgeExpiredTrash(thresholdMillis: Long) {}
+            override suspend fun reassignFolderNotes(oldFolder: String, defaultFolder: String) {}
         }
 
         val useCase = GetAllNotesUseCase(fakeDao)
