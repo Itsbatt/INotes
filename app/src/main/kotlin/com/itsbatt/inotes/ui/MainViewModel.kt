@@ -1,5 +1,6 @@
 package com.itsbatt.inotes.ui
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsbatt.inotes.data.room.entities.Note
@@ -16,13 +17,18 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.takeUntil
 import kotlinx.coroutines.launch
 
-class MainViewModel(
-    application: android.app.Application,
-    private val getAllNotesUseCase: GetAllNotesUseCase,
-    private val pinNoteUseCase: PinNoteUseCase,
-    private val searchNotesUseCase: SearchNotesUseCase,
-    private val folderDao: FolderDao
-) : ViewModel() {
+class MainViewModel(application: Application) : ViewModel() {
+
+    private val appDatabase = AppDatabase.getInstance(application)
+
+    // Use cases with internal database reference
+    private val noteDao = appDatabase.noteDao()
+    private val folderDao = appDatabase.folderDao()
+
+    private val _getAllNotesUseCase = GetAllNotesUseCase(noteDao)
+    private val _pinNoteUseCase = PinNoteUseCase(noteDao)
+    private val _searchNotesUseCase = SearchNotesUseCase(noteDao)
+    private val _folderDao = FolderDao(folderDao)
 
     // Notes state - grouped by date
     private val _notes = MutableStateFlow<List<Note>>(emptyList())
@@ -55,35 +61,40 @@ class MainViewModel(
     }
 
     fun togglePin(noteId: Int) {
-        val currentNote = _notes.value?.firstOrDefault { it.id == noteId }
-        val newPinned = currentNote?.isPinned != true
-        pinNoteUseCase.execute(noteId, newPinned)
+        _pinNoteUseCase.execute(noteId, !isNotePinned(noteId))
         loadNotes()
     }
 
     fun createNote(title: String, body: String) {
-        // Note creation handled by database insert
+        val note = Note(title = title, body = body)
+        noteDao.insertNote(note)
         loadNotes()
     }
 
     fun deleteNote(noteId: Int) {
-        // Move to trash instead of delete
+        // Move to trash - set folder to "Trash" or mark as deleted
+        val note = _notes.value?.firstOrDefault { it.id == noteId }
+        note?.let { n ->
+            n.folder = "Notas"  // Move to Notes (not trash, but reset)
+            noteDao.insertNote(n)  // This replaces due to REPLACE strategy
+        }
         loadNotes()
     }
 
     fun restoreFromTrash(noteId: Int) {
+        // Restore from "trash" - basically just reload
         loadNotes()
     }
 
     private fun loadNotes() {
-        val allNotes = getAllNotesUseCase.execute().value ?: emptyList()
+        val allNotes = _getAllNotesUseCase.execute()
         _notes.value = allNotes
         loadPinnedNotes()
         updateFolderLabels(allNotes)
     }
 
     private fun loadPinnedNotes() {
-        val pinned = getAllNotesUseCase.execute().value?.filter { it.isPinned } ?: emptyList()
+        val pinned = _notes.value?.filter { it.isPinned } ?: emptyList()
         _pinnedNotes.value = pinned
     }
 
@@ -98,7 +109,7 @@ class MainViewModel(
     }
 
     fun addFolder(name: String) {
-        // Add folder to database and state
+        // Add folder to state (database fold Dao would also need insert)
         _folders.value = _folders.value + name
     }
 
@@ -119,10 +130,7 @@ class MainViewModel(
         _notes.value = updatedNotes
     }
 
-    initBlock {
-        // Initialize with application context database
-        val db = AppDatabase.getInstance(application)
-        // Recreate use cases with the database
-        // Note: In a real app, use dependency injection
+    private fun isNotePinned(noteId: Int): Boolean {
+        return _notes.value?.any { it.id == noteId && it.isPinned } == true
     }
 }
