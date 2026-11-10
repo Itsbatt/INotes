@@ -4,19 +4,33 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Note Page Body (White rounded rectangle) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M32,24 C28.69,24 26,26.69 26,30 L26,78 C26,81.31 28.69,84 32,84 L76,84 C79.31,84 82,81.31 82,78 L82,30 C82,26.69 79.31,24 76,24 L32,24 Z" />
+        android:pathData="M34,22 L74,22 A12,12 0 0,1 86,34 L86,76 A12,12 0 0,1 74,88 L34,88 A12,12 0 0,1 22,76 L22,34 A12,12 0 0,1 34,22 Z" />
+
+    <!-- Yellow Top Header Band -->
     <path
-        android:fillColor="#E09E00"
-        android:pathData="M34,36 L74,36 L74,39 L34,39 Z" />
+        android:fillColor="#F8C61B"
+        android:pathData="M34,22 L74,22 A12,12 0 0,1 86,34 L86,38 L22,38 L22,34 A12,12 0 0,1 34,22 Z" />
+
+    <!-- Perforation dots under yellow band -->
+    <!-- Dot row -->
     <path
-        android:fillColor="#E09E00"
-        android:pathData="M34,46 L74,46 L74,49 L34,49 Z" />
+        android:fillColor="#B0B5BA"
+        android:pathData="M27,42 A1.5,1.5 0 1,1 27,42.01 M33,42 A1.5,1.5 0 1,1 33,42.01 M39,42 A1.5,1.5 0 1,1 39,42.01 M45,42 A1.5,1.5 0 1,1 45,42.01 M51,42 A1.5,1.5 0 1,1 51,42.01 M57,42 A1.5,1.5 0 1,1 57,42.01 M63,42 A1.5,1.5 0 1,1 63,42.01 M69,42 A1.5,1.5 0 1,1 69,42.01 M75,42 A1.5,1.5 0 1,1 75,42.01 M81,42 A1.5,1.5 0 1,1 81,42.01" />
+
+    <!-- Note Lines -->
     <path
-        android:fillColor="#E09E00"
-        android:pathData="M34,56 L64,56 L64,59 L34,59 Z" />
+        android:strokeColor="#C5CAD0"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M32,56 L76,56" />
+
     <path
-        android:fillColor="#E09E00"
-        android:pathData="M34,66 L54,66 L54,69 L34,69 Z" />
+        android:strokeColor="#C5CAD0"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M32,72 L76,72" />
 </vector>

@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.NoteList) }
+                    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Folders) }
 
                     when (val screen = currentScreen) {
                         is AppScreen.Folders -> {
@@ -51,20 +51,33 @@ class MainActivity : ComponentActivity() {
                                     viewModel.openTrash()
                                     currentScreen = AppScreen.NoteList
                                 },
+                                onTagSelected = { tag ->
+                                    viewModel.selectTag(tag)
+                                    currentScreen = AppScreen.NoteList
+                                },
                                 onCreateNote = {
                                     currentScreen = AppScreen.NoteDetail(0L)
+                                },
+                                onSearchClicked = {
+                                    viewModel.selectFolder("Todo lo de Google")
+                                    currentScreen = AppScreen.NoteList
                                 }
                             )
                         }
 
                         is AppScreen.NoteList -> {
                             BackHandler {
-                                currentScreen = AppScreen.Folders
+                                if (viewModel.isSelectionMode.value) {
+                                    viewModel.clearSelection()
+                                } else {
+                                    currentScreen = AppScreen.Folders
+                                }
                             }
 
                             NoteListScreen(
                                 viewModel = viewModel,
                                 onNavigateToFolders = {
+                                    viewModel.clearSelection()
                                     currentScreen = AppScreen.Folders
                                 },
                                 onOpenNote = { noteId ->
@@ -86,6 +99,9 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onBack = {
                                     currentScreen = AppScreen.NoteList
+                                },
+                                onCreateNewNote = {
+                                    currentScreen = AppScreen.NoteDetail(0L)
                                 }
                             )
                         }

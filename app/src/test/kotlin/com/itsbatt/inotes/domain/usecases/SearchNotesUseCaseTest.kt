@@ -19,21 +19,26 @@ class SearchNotesUseCaseTest {
 
         val fakeDao = object : NoteDao {
             override suspend fun insertNote(note: Note): Long = 1L
+            override suspend fun insertNotes(notes: List<Note>): List<Long> = emptyList()
             override suspend fun updateNote(note: Note) {}
             override suspend fun deleteNote(note: Note) {}
-            override fun getAllNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
-            override suspend fun getAllNotesList(): List<Note> = emptyList<Note>()
-            override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
-            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override fun getAllNotes(): Flow<List<Note>> = flowOf(emptyList())
+            override suspend fun getAllNotesList(): List<Note> = emptyList()
+            override fun getPinnedNotes(): Flow<List<Note>> = flowOf(emptyList())
+            override fun getNotesByFolder(folderName: String): Flow<List<Note>> = flowOf(emptyList())
             override fun searchNotes(query: String): Flow<List<Note>> = flowOf(matchingNotes)
             override suspend fun searchNotesList(query: String): List<Note> = matchingNotes
             override suspend fun getNoteById(noteId: Long): Note? = null
             override suspend fun deleteNoteById(noteId: Long) {}
+            override suspend fun deleteNotesByIds(noteIds: List<Long>) {}
             override suspend fun setPin(noteId: Long, pinned: Boolean) {}
             override suspend fun moveToTrash(noteId: Long, timestamp: Long) {}
+            override suspend fun moveToTrashBatch(noteIds: List<Long>, timestamp: Long) {}
             override suspend fun restoreFromTrash(noteId: Long) {}
-            override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList<Note>())
+            override suspend fun moveNotesToFolder(noteIds: List<Long>, targetFolder: String) {}
+            override fun getDeletedNotes(): Flow<List<Note>> = flowOf(emptyList())
             override suspend fun emptyTrash() {}
+            override suspend fun getAllNotesRaw(): List<Note> = matchingNotes
         }
 
         val useCase = SearchNotesUseCase(fakeDao)
