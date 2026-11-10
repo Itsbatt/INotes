@@ -80,7 +80,12 @@ fun FolderScreen(
     var renameInput by remember { mutableStateOf("") }
     var folderToDelete by remember { mutableStateOf<Folder?>(null) }
 
-    val sampleTags = listOf("#Compras", "#Jardinería", "#Proyectos", "#Ideas", "#Personal", "#Viajes")
+    val detectedTags = remember(allNotes) {
+        val tagRegex = Regex("#[\\p{L}\\w_]+")
+        allNotes.flatMap { note ->
+            tagRegex.findAll("${note.title} ${note.body}").map { it.value }
+        }.distinct()
+    }
 
     Scaffold(
         bottomBar = {
@@ -319,56 +324,58 @@ fun FolderScreen(
                     Spacer(modifier = Modifier.height(22.dp))
                 }
 
-                // 3. Section: "Etiquetas" (Tags)
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Etiquetas",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                // 3. Section: "Etiquetas" (Tags) - only if notes contain hashtags
+                if (detectedTags.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Etiquetas",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(sampleTags) { tag ->
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        viewModel.setSearchQuery(tag)
-                                        onFolderSelected("Todas las notas")
-                                    },
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                            ) {
-                                Text(
-                                    text = tag,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(detectedTags) { tag ->
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            viewModel.setSearchQuery(tag)
+                                            onFolderSelected("Todas las notas")
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(22.dp))
                     }
-                    Spacer(modifier = Modifier.height(22.dp))
                 }
 
                 // 4. Section: "Eliminado recientemente" (Papelera)

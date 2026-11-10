@@ -92,57 +92,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
             noteDao.purgeExpiredTrash(thirtyDaysAgo)
 
-            // Seed default iOS folders if empty
-            val defaultFolders = listOf("Notas", "Ideas de regalos", "Lista de compras", "Renovación de hogar 🛠️", "Garabatos")
+            // Seed default "Notas" folder if empty
+            val defaultFolders = listOf("Notas")
             defaultFolders.forEach { name ->
                 if (folderDao.getFolderByName(name) == null) {
                     folderDao.insertFolder(Folder(name = name))
                 }
-            }
-
-            // Seed sample notes if empty
-            if (noteDao.getAllNotesList().isEmpty()) {
-                val now = System.currentTimeMillis()
-                val sampleNotes = listOf(
-                    Note(
-                        title = "Viaje anual de senderismo con papá",
-                        body = "No olvidar de empacar lo siguiente:\nProtección solar\nBotas\nBrújula\nComida\nMapa\nLinterna\nKit de primeros auxilios\nBotella de agua\nDesinfectante de manos\nBolsa de dormir",
-                        createdAt = now,
-                        updatedAt = now,
-                        folder = "Notas",
-                        isPinned = true
-                    ),
-                    Note(
-                        title = "Paisajismo",
-                        body = "9:20 a.m. Buscar baldosas para el pórtico trasero",
-                        createdAt = now - 15 * 60 * 1000,
-                        updatedAt = now - 15 * 60 * 1000,
-                        folder = "Notas",
-                        isPinned = true
-                    ),
-                    Note(
-                        title = "Lista de compras",
-                        body = "Huevos\nPan\nLeche\nRefrescos\nTomates",
-                        createdAt = now - 24 * 3600 * 1000,
-                        updatedAt = now - 24 * 3600 * 1000,
-                        folder = "Lista de compras"
-                    ),
-                    Note(
-                        title = "Proyecto de renovación de hogar",
-                        body = "Duración del proyecto: 4 meses\nInicio: Enero\nComenzar después de año nuevo.",
-                        createdAt = now - 26 * 3600 * 1000,
-                        updatedAt = now - 26 * 3600 * 1000,
-                        folder = "Renovación de hogar 🛠️"
-                    ),
-                    Note(
-                        title = "Ideas de remodelación para la cocina",
-                        body = "El inspector vendrá la próxima semana para revisar la parte eléctrica.",
-                        createdAt = now - 30 * 3600 * 1000,
-                        updatedAt = now - 30 * 3600 * 1000,
-                        folder = "Ideas de regalos"
-                    )
-                )
-                sampleNotes.forEach { noteDao.insertNote(it) }
             }
         }
     }
