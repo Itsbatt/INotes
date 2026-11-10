@@ -17,26 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PushPin
@@ -46,8 +36,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +48,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,10 +62,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itsbatt.inotes.data.room.entities.Note
+import com.itsbatt.inotes.domain.DateGroupingUtils
 import com.itsbatt.inotes.ui.AndroidUtils
 import com.itsbatt.inotes.ui.IOSYellow
 import com.itsbatt.inotes.ui.MainViewModel
-import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -91,151 +80,96 @@ fun NoteListScreen(
     val selectedFolder by viewModel.selectedFolder.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isTrashMode by viewModel.isTrashMode.collectAsState()
-    val isGridView by viewModel.isGridView.collectAsState()
-    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
-    val selectedNoteIds by viewModel.selectedNoteIds.collectAsState()
-    val selectedTag by viewModel.selectedTag.collectAsState()
-    val allTags by viewModel.allTags.collectAsState()
-    val allFolders by viewModel.allFolders.collectAsState()
 
-    var showMenu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // Title compacts on scroll (Requirement 2)
+    val isScrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 20 }
+    }
+
+    var notePendingDelete by remember { mutableStateOf<Note?>(null) }
     var activeNoteForOptions by remember { mutableStateOf<Note?>(null) }
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
-    var showMoveToFolderDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
-            if (isSelectionMode) {
-                // Bottom Bar in Selection Mode (Screenshot 2: Folder, Tag, Trash)
-                Surface(
+            // Floating bottom bar with Search pill and Compose button
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                color = Color.Transparent
+            ) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
+                    // Search Bar pill
+                    Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
                     ) {
-                        // Move to folder button
-                        IconButton(
-                            onClick = { showMoveToFolderDialog = true },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                                contentDescription = "Mover a carpeta",
-                                tint = if (selectedNoteIds.isNotEmpty()) IOSYellow else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-
-                        // Tag button
-                        IconButton(
-                            onClick = {},
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Text(
-                                text = "#",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedNoteIds.isNotEmpty()) IOSYellow else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
-                        }
-
-                        // Trash button
-                        IconButton(
-                            onClick = { viewModel.deleteSelectedNotes() },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Eliminar seleccionadas",
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Standard Floating Bottom Bar (Screenshot 5 & 7: Search pill + Compose button)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    color = Color.Transparent
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Search Bar pill
-                        Surface(
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp),
-                            shape = RoundedCornerShape(22.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Buscar",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                TextField(
-                                    value = searchQuery,
-                                    onValueChange = { viewModel.setSearchQuery(it) },
-                                    placeholder = {
-                                        Text(
-                                            text = "Buscar",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 16.sp
-                                        )
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        disabledContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
-                                    ),
-                                    singleLine = true
-                                )
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Clear,
-                                            contentDescription = "Limpiar",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                } else {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Buscar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.setSearchQuery(it) },
+                                placeholder = {
+                                    Text(
+                                        text = "Buscar",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 16.sp
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                singleLine = true
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
                                     Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = "Voz",
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Limpiar",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(19.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = "Voz",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(19.dp)
+                                )
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                        // Floating circular New Note compose button
+                    if (!isTrashMode) {
                         Surface(
                             modifier = Modifier
                                 .size(44.dp)
@@ -252,6 +186,23 @@ fun NoteListScreen(
                                 )
                             }
                         }
+                    } else {
+                        Surface(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable { showEmptyTrashDialog = true },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Vaciar papelera",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -264,196 +215,72 @@ fun NoteListScreen(
                 .padding(innerPadding)
         ) {
             // Top Navigation row
-            if (isSelectionMode) {
-                // Top bar in Selection Mode (Screenshot 2)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onNavigateToFolders)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { viewModel.selectAllNotes() },
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 1.dp
-                    ) {
-                        Text(
-                            text = "Seleccionar todo",
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                        )
-                    }
-
-                    // Yellow check button to exit selection mode
-                    Surface(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clickable { viewModel.clearSelection() },
-                        shape = CircleShape,
-                        color = IOSYellow
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Listo",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
+                        contentDescription = "Volver",
+                        tint = IOSYellow,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Carpetas",
+                        color = IOSYellow,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Normal
+                    )
                 }
-            } else {
-                // Standard Top bar: Back to Folders and More options '...' (Screenshot 5 & 8)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onNavigateToFolders)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                            contentDescription = "Volver",
-                            tint = IOSYellow,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Carpetas",
-                            color = IOSYellow,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Normal
-                        )
-                    }
 
-                    // Options '...' menu button (Screenshot 5)
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Surface(
-                                modifier = Modifier.size(30.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreHoriz,
-                                        contentDescription = "Opciones",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
+                if (isScrolled) {
+                    Text(
+                        text = selectedFolder,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(if (isGridView) "Ver como lista" else "Ver como galería") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    viewModel.toggleGridView()
-                                    showMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Seleccionar notas") },
-                                leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
-                                onClick = {
-                                    viewModel.setSelectionMode(true)
-                                    showMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Sincronizar con Google") },
-                                leadingIcon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = Color(0xFF1A73E8)) },
-                                onClick = {
-                                    viewModel.syncWithGoogle()
-                                    showMenu = false
-                                }
-                            )
-                        }
+                if (isTrashMode && notes.isNotEmpty()) {
+                    TextButton(onClick = { showEmptyTrashDialog = true }) {
+                        Text("Vaciar", color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
                     }
+                } else {
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
             }
 
-            // Big iOS Title & Note count (Screenshot 2, 5 & 8)
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)) {
-                val headerTitle = if (isSelectionMode) {
-                    "${selectedNoteIds.size} seleccionadas"
-                } else if (selectedTag != null) {
-                    selectedTag!!
-                } else {
-                    selectedFolder
-                }
-
-                Text(
-                    text = headerTitle,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                val countText = "${notes.size} ${if (notes.size == 1) "nota" else "notas"}"
-                Text(
-                    text = countText,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Tag screen horizontal tags selector (Screenshot 8)
-                if (selectedTag != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(allTags) { tag ->
-                            val isSelected = tag == selectedTag
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        viewModel.selectTag(if (isSelected) null else tag)
-                                    },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) IOSYellow else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                            ) {
-                                Text(
-                                    text = tag,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+            // Big iOS Title (compacts when scrolled)
+            if (!isScrolled) {
+                Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     Text(
-                        text = "Mostrar notas que coincidan con la etiqueta seleccionada: $selectedTag.",
-                        fontSize = 13.sp,
+                        text = selectedFolder,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    val noteCountText = "${notes.size} ${if (notes.size == 1) "nota" else "notas"}"
+                    Text(
+                        text = noteCountText,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Notes Content
+            // Content: Grouped by date (Hoy, Ayer, Esta semana, Mes y año)
             if (notes.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -470,134 +297,67 @@ fun NoteListScreen(
             } else {
                 val pinnedNotes = notes.filter { it.isPinned }
                 val unpinnedNotes = notes.filter { !it.isPinned }
-                val dateSections = groupNotesByDateCategory(unpinnedNotes)
+                val dateSections = DateGroupingUtils.groupNotesByDate(unpinnedNotes)
 
-                if (isGridView) {
-                    // GALLERY / GRID VIEW (Screenshot 5)
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        if (pinnedNotes.isNotEmpty()) {
-                            item(span = { GridItemSpan(2) }) {
-                                SectionHeader(title = "Fijadas")
-                            }
-                            items(pinnedNotes) { note ->
-                                NoteGridItem(
-                                    note = note,
-                                    onClick = { onOpenNote(note.id) },
-                                    isSelectionMode = isSelectionMode,
-                                    isSelected = selectedNoteIds.contains(note.id),
-                                    onSelectToggle = { viewModel.toggleSelectNote(note.id) }
-                                )
-                            }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    // Pinned notes section
+                    if (pinnedNotes.isNotEmpty()) {
+                        item {
+                            SectionHeader(title = "Fijadas")
                         }
-
-                        dateSections.forEach { (sectionTitle, sectionNotes) ->
-                            if (sectionNotes.isNotEmpty()) {
-                                item(span = { GridItemSpan(2) }) {
-                                    SectionHeader(title = sectionTitle)
-                                }
-                                items(sectionNotes) { note ->
-                                    NoteGridItem(
-                                        note = note,
-                                        onClick = { onOpenNote(note.id) },
-                                        isSelectionMode = isSelectionMode,
-                                        isSelected = selectedNoteIds.contains(note.id),
-                                        onSelectToggle = { viewModel.toggleSelectNote(note.id) }
-                                    )
+                        item {
+                            GroupedCard {
+                                pinnedNotes.forEachIndexed { index, note ->
+                                    Box(
+                                        modifier = Modifier.combinedClickable(
+                                            onClick = { onOpenNote(note.id) },
+                                            onLongClick = { activeNoteForOptions = note }
+                                        )
+                                    ) {
+                                        NoteItem(
+                                            note = note,
+                                            onClick = { onOpenNote(note.id) },
+                                            onSwipeDelete = { notePendingDelete = note },
+                                            showDivider = index < pinnedNotes.size - 1
+                                        )
+                                    }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
-                } else {
-                    // LIST VIEW (Screenshot 2)
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                    ) {
-                        if (pinnedNotes.isNotEmpty()) {
+
+                    // Date grouped sections: Hoy, Ayer, Esta semana, Mes y año
+                    dateSections.forEach { (sectionTitle, sectionNotes) ->
+                        if (sectionNotes.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "Fijadas")
+                                SectionHeader(title = sectionTitle)
                             }
                             item {
                                 GroupedCard {
-                                    pinnedNotes.forEachIndexed { index, note ->
+                                    sectionNotes.forEachIndexed { index, note ->
                                         Box(
                                             modifier = Modifier.combinedClickable(
-                                                onClick = {
-                                                    if (isSelectionMode) {
-                                                        viewModel.toggleSelectNote(note.id)
-                                                    } else {
-                                                        onOpenNote(note.id)
-                                                    }
-                                                },
-                                                onLongClick = {
-                                                    if (!isSelectionMode) {
-                                                        activeNoteForOptions = note
-                                                    }
-                                                }
+                                                onClick = { onOpenNote(note.id) },
+                                                onLongClick = { activeNoteForOptions = note }
                                             )
                                         ) {
                                             NoteItem(
                                                 note = note,
                                                 onClick = { onOpenNote(note.id) },
-                                                showDivider = index < pinnedNotes.size - 1,
-                                                isSelectionMode = isSelectionMode,
-                                                isSelected = selectedNoteIds.contains(note.id),
-                                                onSelectToggle = { viewModel.toggleSelectNote(note.id) }
+                                                onSwipeDelete = { notePendingDelete = note },
+                                                showDivider = index < sectionNotes.size - 1
                                             )
                                         }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
-                            }
-                        }
-
-                        dateSections.forEach { (sectionTitle, sectionNotes) ->
-                            if (sectionNotes.isNotEmpty()) {
-                                item {
-                                    SectionHeader(title = sectionTitle)
-                                }
-                                item {
-                                    GroupedCard {
-                                        sectionNotes.forEachIndexed { index, note ->
-                                            Box(
-                                                modifier = Modifier.combinedClickable(
-                                                    onClick = {
-                                                        if (isSelectionMode) {
-                                                            viewModel.toggleSelectNote(note.id)
-                                                        } else {
-                                                            onOpenNote(note.id)
-                                                        }
-                                                    },
-                                                    onLongClick = {
-                                                        if (!isSelectionMode) {
-                                                            activeNoteForOptions = note
-                                                        }
-                                                    }
-                                                )
-                                            ) {
-                                                NoteItem(
-                                                    note = note,
-                                                    onClick = { onOpenNote(note.id) },
-                                                    showDivider = index < sectionNotes.size - 1,
-                                                    isSelectionMode = isSelectionMode,
-                                                    isSelected = selectedNoteIds.contains(note.id),
-                                                    onSelectToggle = { viewModel.toggleSelectNote(note.id) }
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                }
                             }
                         }
                     }
@@ -606,40 +366,42 @@ fun NoteListScreen(
         }
     }
 
-    // Move to folder dialog
-    if (showMoveToFolderDialog) {
+    // Confirmation dialog for Swipe-to-delete (Requirement 7)
+    notePendingDelete?.let { note ->
         AlertDialog(
-            onDismissRequest = { showMoveToFolderDialog = false },
-            title = { Text("Mover notas a carpeta", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { notePendingDelete = null },
+            title = { Text(if (isTrashMode) "¿Eliminar nota definitivamente?" else "¿Mover a la papelera?") },
             text = {
-                LazyColumn {
-                    items(allFolders) { folder ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.moveSelectedNotesToFolder(folder.name)
-                                    showMoveToFolderDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Folder, contentDescription = null, tint = IOSYellow)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(folder.name, fontSize = 16.sp)
-                        }
-                    }
-                }
+                Text(
+                    if (isTrashMode)
+                        "La nota '${note.title.ifBlank { "sin título" }}' se eliminará de forma permanente."
+                    else
+                        "La nota '${note.title.ifBlank { "sin título" }}' permanecerá en la papelera durante 30 días antes del borrado definitivo."
+                )
             },
             confirmButton = {
-                TextButton(onClick = { showMoveToFolderDialog = false }) {
+                TextButton(
+                    onClick = {
+                        if (isTrashMode) {
+                            viewModel.deletePermanently(note.id)
+                        } else {
+                            viewModel.moveToTrash(note.id)
+                        }
+                        notePendingDelete = null
+                    }
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { notePendingDelete = null }) {
                     Text("Cancelar")
                 }
             }
         )
     }
 
-    // Context options dialog/sheet for selected note
+    // Context options dialog for long-pressed note
     activeNoteForOptions?.let { note ->
         AlertDialog(
             onDismissRequest = { activeNoteForOptions = null },
@@ -665,7 +427,7 @@ fun NoteListScreen(
                         ) {
                             Icon(Icons.Default.PushPin, contentDescription = null, tint = IOSYellow)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(if (note.isPinned) "Desfijar" else "Fijar nota")
+                            Text(if (note.isPinned) "Desfijar" else "Fijar nota arriba")
                         }
 
                         Row(
@@ -688,7 +450,7 @@ fun NoteListScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    viewModel.moveToTrash(note.id)
+                                    notePendingDelete = note
                                     activeNoteForOptions = null
                                 }
                                 .padding(vertical = 12.dp),
@@ -696,7 +458,7 @@ fun NoteListScreen(
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                            Text("Mover a la papelera", color = MaterialTheme.colorScheme.error)
                         }
                     } else {
                         Row(
@@ -711,14 +473,14 @@ fun NoteListScreen(
                         ) {
                             Icon(Icons.Default.Restore, contentDescription = null, tint = IOSYellow)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Restaurar nota")
+                            Text("Recuperar nota")
                         }
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    viewModel.deletePermanently(note.id)
+                                    notePendingDelete = note
                                     activeNoteForOptions = null
                                 }
                                 .padding(vertical = 12.dp),
@@ -743,7 +505,7 @@ fun NoteListScreen(
         AlertDialog(
             onDismissRequest = { showEmptyTrashDialog = false },
             title = { Text("¿Vaciar papelera?") },
-            text = { Text("Se eliminarán todas las notas de la papelera permanentemente.") },
+            text = { Text("Se eliminarán todas las notas de la papelera definitivamente.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -786,48 +548,4 @@ fun GroupedCard(content: @Composable () -> Unit) {
     ) {
         content()
     }
-}
-
-fun groupNotesByDateCategory(notes: List<Note>): List<Pair<String, List<Note>>> {
-    val cal = Calendar.getInstance()
-    cal.set(Calendar.HOUR_OF_DAY, 0)
-    cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0)
-    cal.set(Calendar.MILLISECOND, 0)
-    val todayStart = cal.timeInMillis
-
-    cal.add(Calendar.DAY_OF_YEAR, -1)
-    val yesterdayStart = cal.timeInMillis
-
-    cal.add(Calendar.DAY_OF_YEAR, -6)
-    val last7DaysStart = cal.timeInMillis
-
-    cal.timeInMillis = todayStart
-    cal.set(Calendar.DAY_OF_MONTH, 1)
-    val thisMonthStart = cal.timeInMillis
-
-    val hoy = mutableListOf<Note>()
-    val ayer = mutableListOf<Note>()
-    val ultimos7 = mutableListOf<Note>()
-    val esteMes = mutableListOf<Note>()
-    val anteriores = mutableListOf<Note>()
-
-    for (note in notes) {
-        when {
-            note.updatedAt >= todayStart -> hoy.add(note)
-            note.updatedAt >= yesterdayStart -> ayer.add(note)
-            note.updatedAt >= last7DaysStart -> ultimos7.add(note)
-            note.updatedAt >= thisMonthStart -> esteMes.add(note)
-            else -> anteriores.add(note)
-        }
-    }
-
-    val result = mutableListOf<Pair<String, List<Note>>>()
-    if (hoy.isNotEmpty()) result.add("Hoy" to hoy)
-    if (ayer.isNotEmpty()) result.add("Ayer" to ayer)
-    if (ultimos7.isNotEmpty()) result.add("Últimos 7 días" to ultimos7)
-    if (esteMes.isNotEmpty()) result.add("Este mes" to esteMes)
-    if (anteriores.isNotEmpty()) result.add("Anteriores" to anteriores)
-
-    return result
 }

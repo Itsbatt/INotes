@@ -51,15 +51,11 @@ class MainActivity : ComponentActivity() {
                                     viewModel.openTrash()
                                     currentScreen = AppScreen.NoteList
                                 },
-                                onTagSelected = { tag ->
-                                    viewModel.selectTag(tag)
-                                    currentScreen = AppScreen.NoteList
-                                },
                                 onCreateNote = {
                                     currentScreen = AppScreen.NoteDetail(0L)
                                 },
                                 onSearchClicked = {
-                                    viewModel.selectFolder("Todo lo de Google")
+                                    viewModel.selectFolder("Todas las notas")
                                     currentScreen = AppScreen.NoteList
                                 }
                             )
@@ -67,17 +63,12 @@ class MainActivity : ComponentActivity() {
 
                         is AppScreen.NoteList -> {
                             BackHandler {
-                                if (viewModel.isSelectionMode.value) {
-                                    viewModel.clearSelection()
-                                } else {
-                                    currentScreen = AppScreen.Folders
-                                }
+                                currentScreen = AppScreen.Folders
                             }
 
                             NoteListScreen(
                                 viewModel = viewModel,
                                 onNavigateToFolders = {
-                                    viewModel.clearSelection()
                                     currentScreen = AppScreen.Folders
                                 },
                                 onOpenNote = { noteId ->
@@ -99,9 +90,6 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onBack = {
                                     currentScreen = AppScreen.NoteList
-                                },
-                                onCreateNewNote = {
-                                    currentScreen = AppScreen.NoteDetail(0L)
                                 }
                             )
                         }
