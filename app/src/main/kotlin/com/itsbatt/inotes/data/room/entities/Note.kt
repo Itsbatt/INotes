@@ -15,6 +15,5 @@ data class Note(
     val folder: String = "Notas",
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
-    val tags: String = "",
-    val isChecklist: Boolean = false
+    val tags: String = ""
 )
