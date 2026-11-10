@@ -27,13 +27,12 @@ import com.itsbatt.inotes.ui.MainViewModel
 fun FolderScreen(viewModel: MainViewModel) {
     var newFolderName by remember { mutableStateOf("") }
     var renameFolderName by remember { mutableStateOf("") }
-    var confirmRename by remember { mutableStateOf("") }
     var folderToRename by remember { mutableStateOf<String?>(null) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.Start
     ) {
         // Header
@@ -44,7 +43,7 @@ fun FolderScreen(viewModel: MainViewModel) {
         )
 
         // Folders list
-        var folders by remember { mutableStateOf(viewModel.folders.value) }
+        val folders = viewModel.folders.value
         if (folders.isEmpty()) {
             Text(
                 text = "No hay carpetas",
@@ -89,7 +88,7 @@ fun FolderScreen(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
-            Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.Center) {
+            Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center, horizontalAlignment = Alignment.Center) {
                 Text(
                     text = "Renombrar carpeta",
                     style = MaterialTheme.typography.h6
@@ -101,8 +100,8 @@ fun FolderScreen(viewModel: MainViewModel) {
                     label = { Text("Nombre de la carpeta") }
                 )
                 Row(
-                    verticalArrangement = Arrangement.End,
-                    horizontalArrangement = Arrangement.Center
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                    horizontalArrangement = androidx.compose.layout.Arrangement.Center
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -128,12 +127,12 @@ fun FolderScreen(viewModel: MainViewModel) {
     }
 
     // Delete confirmation
-    if (folderToDelete != null && showDeleteConfirm) {
+    if (folderToDelete != null) {
         Surface(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
-            Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.Center) {
+            Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center, horizontalAlignment = Alignment.Center) {
                 Text(
                     text = "Eliminar carpeta ${folderToDelete}",
                     style = MaterialTheme.typography.body1
@@ -144,8 +143,8 @@ fun FolderScreen(viewModel: MainViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(
-                    verticalArrangement = Arrangement.End,
-                    horizontalArrangement = Arrangement.Center
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                    horizontalArrangement = androidx.compose.layout.Arrangement.Center
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -179,17 +178,17 @@ fun FolderRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Center
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.Center
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(0.7f),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
         ) {
             Text(
                 text = folderName,
                 style = MaterialTheme.typography.body1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = androidx.compose.ui.text.TextOverflow.Ellipsis,
                 maxLines = 1
             )
         }
@@ -197,7 +196,7 @@ fun FolderRow(
         Row(
             modifier = Modifier
                 .wrapContentSize(),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
         ) {
             OutlinedButton(
                 onClick = onRenameClick,
