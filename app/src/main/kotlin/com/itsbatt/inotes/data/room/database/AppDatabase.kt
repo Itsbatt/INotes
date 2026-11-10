@@ -27,9 +27,25 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE notes ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE notes ADD COLUMN deletedAt INTEGER DEFAULT NULL")
-                db.execSQL("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                val cursor = db.query("PRAGMA table_info(notes)")
+                val existingColumns = mutableSetOf<String>()
+                val nameIndex = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (nameIndex != -1) {
+                        existingColumns.add(cursor.getString(nameIndex))
+                    }
+                }
+                cursor.close()
+
+                if (!existingColumns.contains("isDeleted")) {
+                    db.execSQL("ALTER TABLE notes ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
+                }
+                if (!existingColumns.contains("deletedAt")) {
+                    db.execSQL("ALTER TABLE notes ADD COLUMN deletedAt INTEGER DEFAULT NULL")
+                }
+                if (!existingColumns.contains("tags")) {
+                    db.execSQL("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                }
             }
         }
 
