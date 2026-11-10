@@ -52,7 +52,6 @@ dependencies {
     implementation 'androidx.room:room-ktx:2.5.0'
     implementation 'androidx.room:room-rxjava2:2.5.0'
     annotationProcessor 'androidx.room:room-compiler:2.5.0'
-    // Room RxJava3 alternative if needed
 
     // Lifecycle and ViewModel
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.0'
