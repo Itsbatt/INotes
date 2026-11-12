@@ -1,47 +1,72 @@
 package com.itsbatt.inotes.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,14 +76,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itsbatt.inotes.data.room.entities.Folder
 import com.itsbatt.inotes.ui.IOSYellow
+import com.itsbatt.inotes.ui.LiquidGlassPill
+import com.itsbatt.inotes.ui.LocalLiquidGlassConfig
 import com.itsbatt.inotes.ui.MainViewModel
+import com.itsbatt.inotes.ui.iosPressScale
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -67,7 +108,8 @@ fun FolderScreen(
     onFolderSelected: (String) -> Unit,
     onTrashSelected: () -> Unit,
     onCreateNote: () -> Unit,
-    onSearchClicked: () -> Unit
+    onSearchClicked: () -> Unit,
+    onOpenGlassLab: () -> Unit = {}
 ) {
     val folders by viewModel.allFolders.collectAsState()
     val allNotes by viewModel.allNotes.collectAsState()
@@ -79,6 +121,13 @@ fun FolderScreen(
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var renameInput by remember { mutableStateOf("") }
     var folderToDelete by remember { mutableStateOf<Folder?>(null) }
+    var isEditMode by remember { mutableStateOf(false) }
+    var isDeviceSectionExpanded by remember { mutableStateOf(true) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isDeviceSectionExpanded) 0f else -90f,
+        label = "chevronRotation"
+    )
+    val backdrop = rememberLayerBackdrop()
 
     val detectedTags = remember(allNotes) {
         val tagRegex = Regex("#[\\p{L}\\w_]+")
@@ -87,142 +136,16 @@ fun FolderScreen(
         }.distinct()
     }
 
-    Scaffold(
-        bottomBar = {
-            // iOS Style Floating Bottom Bar with Search pill and Compose button
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                color = Color.Transparent
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Search Bar pill
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .clickable(onClick = onSearchClicked),
-                        shape = RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Buscar",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Buscar",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 16.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "Voz",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Floating circular New Note compose button
-                    Surface(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clickable(onClick = onCreateNote),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Nueva nota",
-                                tint = IOSYellow,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(innerPadding)
+                .layerBackdrop(backdrop)
+                .statusBarsPadding()
         ) {
-            // Top action buttons row: New Folder & Editar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // New Folder pill button
-                Surface(
-                    modifier = Modifier
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(17.dp))
-                        .clickable { showNewFolderDialog = true },
-                    shape = RoundedCornerShape(17.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 1.dp
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CreateNewFolder,
-                            contentDescription = "Nueva carpeta",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Editar pill button
-                Surface(
-                    modifier = Modifier
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(17.dp))
-                        .clickable { showNewFolderDialog = true },
-                    shape = RoundedCornerShape(17.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 1.dp
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Editar",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
+            // Top spacer for floating action pills
+            Spacer(modifier = Modifier.height(56.dp))
 
             // Big iOS Title: "Carpetas"
             Text(
@@ -267,6 +190,8 @@ fun FolderScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { isDeviceSectionExpanded = !isDeviceSectionExpanded }
                             .padding(horizontal = 4.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -281,7 +206,9 @@ fun FolderScreen(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier
+                                .size(20.dp)
+                                .rotate(chevronRotation)
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -289,35 +216,62 @@ fun FolderScreen(
 
                 // Folders Card
                 item {
-                    GroupedCard {
-                        FolderItemRow(
-                            name = "Todas las notas",
-                            count = allNotes.size,
-                            icon = Icons.Outlined.Folder,
-                            iconTint = IOSYellow,
-                            onClick = { onFolderSelected("Todas las notas") },
-                            showDivider = folders.isNotEmpty()
-                        )
+                    AnimatedVisibility(visible = isDeviceSectionExpanded) {
+                        GroupedCard {
+                            FolderItemRow(
+                                name = "Todas las notas",
+                                count = allNotes.size,
+                                icon = Icons.Outlined.Folder,
+                                iconTint = IOSYellow,
+                                onClick = { if (!isEditMode) onFolderSelected("Todas las notas") },
+                                showDivider = folders.isNotEmpty()
+                            )
 
-                        folders.forEachIndexed { index, folder ->
-                            val count = allNotes.count { it.folder.equals(folder.name, ignoreCase = true) }
-                            Box(
-                                modifier = Modifier.combinedClickable(
-                                    onClick = { onFolderSelected(folder.name) },
-                                    onLongClick = {
-                                        folderToRename = folder
-                                        renameInput = folder.name
-                                    }
-                                )
-                            ) {
-                                FolderItemRow(
-                                    name = folder.name,
-                                    count = count,
-                                    icon = Icons.Outlined.Folder,
-                                    iconTint = IOSYellow,
-                                    onClick = { onFolderSelected(folder.name) },
-                                    showDivider = index < folders.size - 1
-                                )
+                            folders.forEachIndexed { index, folder ->
+                                val count = allNotes.count { it.folder.equals(folder.name, ignoreCase = true) }
+                                val isEditableFolder = !folder.name.equals("Notas", ignoreCase = true)
+                                Box(
+                                    modifier = Modifier.combinedClickable(
+                                        onClick = {
+                                            if (isEditMode && isEditableFolder) {
+                                                folderToRename = folder
+                                                renameInput = folder.name
+                                            } else {
+                                                onFolderSelected(folder.name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (isEditableFolder) {
+                                                folderToRename = folder
+                                                renameInput = folder.name
+                                            }
+                                        }
+                                    )
+                                ) {
+                                    FolderItemRow(
+                                        name = folder.name,
+                                        count = count,
+                                        icon = Icons.Outlined.Folder,
+                                        iconTint = IOSYellow,
+                                        onClick = {
+                                            if (isEditMode && isEditableFolder) {
+                                                folderToRename = folder
+                                                renameInput = folder.name
+                                            } else {
+                                                onFolderSelected(folder.name)
+                                            }
+                                        },
+                                        showDivider = index < folders.size - 1,
+                                        isEditMode = isEditMode && isEditableFolder,
+                                        onRenameClick = {
+                                            folderToRename = folder
+                                            renameInput = folder.name
+                                        },
+                                        onDeleteClick = {
+                                            folderToDelete = folder
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -354,22 +308,31 @@ fun FolderScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(detectedTags) { tag ->
+                                val tagInteraction = remember { MutableInteractionSource() }
                                 Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    ),
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            viewModel.setSearchQuery(tag)
-                                            onFolderSelected("Todas las notas")
-                                        },
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                        .iosPressScale(tagInteraction)
+                                        .clickable(
+                                            interactionSource = tagInteraction,
+                                            indication = null,
+                                            onClick = {
+                                                viewModel.setSearchQuery(tag)
+                                                onFolderSelected("Todas las notas")
+                                            }
+                                        )
                                 ) {
                                     Text(
                                         text = tag,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                     )
                                 }
                             }
@@ -378,7 +341,51 @@ fun FolderScreen(
                     }
                 }
 
-                // 4. Section: "Eliminado recientemente" (Papelera)
+                // 4. Smart Folders ("Carpetas inteligentes")
+                item {
+                    val startOfDay = remember {
+                        java.util.Calendar.getInstance().apply {
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                    }
+                    val tasksCount = allNotes.count { it.body.contains("- [ ] ") || it.body.contains("- [x] ") }
+                    val mediaCount = allNotes.count { it.body.contains("[drawing:") || it.body.contains("[image:") }
+                    val todayCount = allNotes.count { it.updatedAt >= startOfDay }
+
+                    SectionHeader(title = "Carpetas inteligentes")
+                    GroupedCard {
+                        FolderItemRow(
+                            name = "Con tareas",
+                            count = tasksCount,
+                            icon = Icons.Default.CheckCircle,
+                            iconTint = Color(0xFF34C759),
+                            onClick = { onFolderSelected("Con tareas") },
+                            showDivider = true
+                        )
+                        FolderItemRow(
+                            name = "Con dibujos y fotos",
+                            count = mediaCount,
+                            icon = Icons.Default.Image,
+                            iconTint = Color(0xFF5856D6),
+                            onClick = { onFolderSelected("Con dibujos y fotos") },
+                            showDivider = true
+                        )
+                        FolderItemRow(
+                            name = "De hoy",
+                            count = todayCount,
+                            icon = Icons.Default.Today,
+                            iconTint = Color(0xFF007AFF),
+                            onClick = { onFolderSelected("De hoy") },
+                            showDivider = false
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(22.dp))
+                }
+
+                // 5. Section: "Eliminado recientemente" (Papelera)
                 item {
                     SectionHeader(title = "Eliminado recientemente")
                     GroupedCard {
@@ -391,128 +398,442 @@ fun FolderScreen(
                             showDivider = false
                         )
                     }
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(92.dp))
+                }
+            }
+        }
+
+        // Floating Top Action Pills (iOS 26 Liquid Glass)
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LiquidGlassPill(
+                backdrop = backdrop,
+                modifier = Modifier.size(38.dp),
+                shape = CircleShape,
+                onClick = onOpenGlassLab
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Liquid Glass Lab",
+                        tint = IOSYellow,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            LiquidGlassPill(
+                backdrop = backdrop,
+                modifier = Modifier.size(38.dp),
+                shape = CircleShape,
+                onClick = { showNewFolderDialog = true }
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CreateNewFolder,
+                        contentDescription = "Nueva carpeta",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            LiquidGlassPill(
+                backdrop = backdrop,
+                modifier = Modifier.height(38.dp),
+                shape = CircleShape,
+                onClick = { isEditMode = !isEditMode }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isEditMode) "OK" else "Editar",
+                        fontSize = 15.sp,
+                        fontWeight = if (isEditMode) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (isEditMode) IOSYellow else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        // Floating Bottom Bar (iOS 26 Liquid Glass)
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            LiquidGlassPill(
+                backdrop = backdrop,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = CircleShape,
+                onClick = onSearchClicked
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Buscar",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Buscar",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voz",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            LiquidGlassPill(
+                backdrop = backdrop,
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                onClick = onCreateNote
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Nueva nota",
+                        tint = IOSYellow,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
         }
     }
 
-    // Dialog Create Folder
-    if (showNewFolderDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showNewFolderDialog = false
-                newFolderName = ""
-            },
-            title = { Text("Nueva carpeta", fontWeight = FontWeight.Bold) },
-            text = {
-                OutlinedTextField(
-                    value = newFolderName,
-                    onValueChange = { newFolderName = it },
-                    placeholder = { Text("Nombre de la carpeta") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+    // iOS 26 Liquid Glass Modal: Create Folder
+    LiquidGlassModal(
+        visible = showNewFolderDialog,
+        backdrop = backdrop,
+        title = "Nueva carpeta",
+        onDismiss = {
+            showNewFolderDialog = false
+            newFolderName = ""
+        },
+        onConfirm = {
+            if (newFolderName.isNotBlank()) {
+                viewModel.createFolder(newFolderName)
+            }
+            showNewFolderDialog = false
+            newFolderName = ""
+        },
+        confirmEnabled = newFolderName.isNotBlank()
+    ) {
+        IOSGlassTextField(
+            value = newFolderName,
+            onValueChange = { newFolderName = it },
+            placeholder = "Nombre"
+        )
+    }
+
+    // iOS 26 Liquid Glass Modal: Rename / Delete Folder
+    LiquidGlassModal(
+        visible = folderToRename != null,
+        backdrop = backdrop,
+        title = "Editar carpeta",
+        onDismiss = { folderToRename = null },
+        onConfirm = {
+            folderToRename?.let { folder ->
+                if (renameInput.isNotBlank()) {
+                    viewModel.renameFolder(folder.id, renameInput)
+                }
+            }
+            folderToRename = null
+        },
+        confirmEnabled = renameInput.isNotBlank()
+    ) {
+        IOSGlassTextField(
+            value = renameInput,
+            onValueChange = { renameInput = it },
+            placeholder = "Nuevo nombre"
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        LiquidGlassPill(
+            backdrop = backdrop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp),
+            shape = CircleShape,
+            onClick = {
+                folderToDelete = folderToRename
+                folderToRename = null
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp)
                 )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newFolderName.isNotBlank()) {
-                            viewModel.createFolder(newFolderName)
-                        }
-                        showNewFolderDialog = false
-                        newFolderName = ""
-                    }
-                ) {
-                    Text("Guardar", color = IOSYellow, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showNewFolderDialog = false
-                        newFolderName = ""
-                    }
-                ) {
-                    Text("Cancelar")
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Eliminar carpeta",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
             }
-        )
+        }
     }
 
-    // Dialog Rename / Delete Folder
-    folderToRename?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { folderToRename = null },
-            title = { Text("Opciones de carpeta", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = renameInput,
-                        onValueChange = { renameInput = it },
-                        label = { Text("Nuevo nombre") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+    // iOS 26 Liquid Glass Modal: Delete Confirmation
+    LiquidGlassModal(
+        visible = folderToDelete != null,
+        backdrop = backdrop,
+        title = "¿Eliminar carpeta?",
+        confirmTint = MaterialTheme.colorScheme.error,
+        onDismiss = { folderToDelete = null },
+        onConfirm = {
+            folderToDelete?.let { viewModel.deleteFolder(it) }
+            folderToDelete = null
+        }
+    ) {
+        Text(
+            text = "Al eliminar '${folderToDelete?.name ?: ""}', sus notas se moverán automáticamente a 'Notas'.",
+            fontSize = 15.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun LiquidGlassModal(
+    visible: Boolean,
+    backdrop: LayerBackdrop,
+    title: String,
+    confirmTint: Color = IOSYellow,
+    confirmEnabled: Boolean = true,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = isSystemInDarkTheme()
+    val config = LocalLiquidGlassConfig.current
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.34f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+                .imePadding()
+                .padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = scaleIn(
+                    initialScale = 0.86f,
+                    animationSpec = spring(
+                        dampingRatio = 0.65f,
+                        stiffness = Spring.StiffnessMediumLow
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                folderToDelete = folder
-                                folderToRename = null
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Eliminar carpeta", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (renameInput.isNotBlank()) {
-                            viewModel.renameFolder(folder.id, renameInput)
-                        }
-                        folderToRename = null
-                    }
-                ) {
-                    Text("Renombrar", color = IOSYellow, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { folderToRename = null }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
+                ) + fadeIn(),
+                exit = scaleOut(targetScale = 0.90f) + fadeOut()
+            ) {
+                val shape = RoundedCornerShape(30.dp)
+                val borderBrush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = if (isDark) 0.30f else 0.96f),
+                        (if (isDark) Color.White else Color(0xFFC7C7CC)).copy(alpha = if (isDark) 0.08f else 0.40f)
+                    )
+                )
 
-    // Dialog Delete Confirmation (Notes move to "Notas", not deleted)
-    folderToDelete?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { folderToDelete = null },
-            title = { Text("¿Eliminar carpeta?") },
-            text = { Text("Al eliminar la carpeta '${folder.name}', sus notas se moverán automáticamente a 'Notas'.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteFolder(folder)
-                        folderToDelete = null
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        )
+                        .shadow(20.dp, shape)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { shape },
+                            effects = {
+                                if (config.enableVibrancy) vibrancy()
+                                blur(18.dp.toPx())
+                                if (config.enableLens) {
+                                    lens(
+                                        refractionHeight = 16.dp.toPx(),
+                                        refractionAmount = 26.dp.toPx(),
+                                        chromaticAberration = config.chromaticAberration
+                                    )
+                                }
+                            },
+                            onDrawSurface = {
+                                val bg = if (isDark) Color(0xFF2C2C2E) else Color.White
+                                drawRect(bg.copy(alpha = if (isDark) 0.72f else 0.78f))
+                            }
+                        )
+                        .border(BorderStroke(1.dp, borderBrush), shape)
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
                 ) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    // iOS Top Bar: Circular Cancel 'X', Bold Title, Circular Confirm 'Check'
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        LiquidGlassPill(
+                            backdrop = backdrop,
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            onClick = onDismiss
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancelar",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = title,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        LiquidGlassPill(
+                            backdrop = backdrop,
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            tintOverride = if (confirmEnabled) confirmTint else null,
+                            onClick = { if (confirmEnabled) onConfirm() }
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Guardar",
+                                    tint = if (confirmEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    content()
+
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { folderToDelete = null }) {
-                    Text("Cancelar")
+            }
+        }
+    }
+}
+
+@Composable
+private fun IOSGlassTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(IOSYellow),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    innerTextField()
                 }
             }
         )
+        if (value.isNotEmpty()) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Limpiar",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable { onValueChange("") }
+            )
+        }
     }
 }
 
@@ -525,10 +846,12 @@ fun QuickAccessRow(
     onClick: () -> Unit,
     showDivider: Boolean = true
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .iosPressScale(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -542,8 +865,8 @@ fun QuickAccessRow(
                 modifier = Modifier.weight(1f)
             ) {
                 Surface(
-                    modifier = Modifier.size(30.dp),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.size(32.dp),
+                    shape = CircleShape,
                     color = iconBackground
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -597,12 +920,17 @@ fun FolderItemRow(
     icon: ImageVector = Icons.Outlined.Folder,
     iconTint: Color = IOSYellow,
     onClick: () -> Unit,
-    showDivider: Boolean = false
+    showDivider: Boolean = false,
+    isEditMode: Boolean = false,
+    onRenameClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .iosPressScale(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -630,19 +958,45 @@ fun FolderItemRow(
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "$count",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(14.dp)
-                )
+            if (isEditMode) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onRenameClick != null) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Renombrar",
+                            tint = IOSYellow,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable(onClick = onRenameClick)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                    }
+                    if (onDeleteClick != null) {
+                        Icon(
+                            imageVector = Icons.Default.RemoveCircle,
+                            contentDescription = "Eliminar carpeta",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clickable(onClick = onDeleteClick)
+                        )
+                    }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "$count",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
 

@@ -1,61 +1,50 @@
 # INotes 📝
 
-Aplicación de notas para Android con diseño y experiencia de usuario inspirados en la app oficial **Notas de iOS (iPhone)**.
+Aplicación de notas para Android con diseño **iOS 26 Liquid Glass** y experiencia inspirada en **Apple Notas (iPhone)**.
 
 ---
 
-## 📸 Capturas de Pantalla (Marcadores)
+## ✨ Novedades y Funcionalidades (v2.0.0)
 
-| Pantalla de Carpetas | Lista de Notas (Agrupada) | Editor de Nota |
-|:---:|:---:|:---:|
-| ![Pantalla de Carpetas](docs/screenshots/folders.png) | ![Lista de Notas](docs/screenshots/notes_list.png) | ![Editor de Nota](docs/screenshots/note_editor.png) |
-| *Acceso rápido, carpetas y papelera* | *Agrupación temporal (Hoy, Ayer...) y cabecera dinámica* | *Guardado con debounce (1.5s), deshacer/rehacer y compartir* |
+1. **Estética iOS 26 Liquid Glass:**
+   - Píldoras, barras flotantes, menús contextuales y modales con refracción óptica real mediante `Kyant0/AndroidLiquidGlass` (`backdrop:1.0.6`), brillo especular reactivo al toque y animaciones con física de muelle (*spring*).
+   - Soporte nativo para **Modo Claro y Oscuro**.
+   - **Liquid Glass Lab / Ajustes:** panel interactivo para ajustar desenfoque, refracción, aberración cromática, opacidad y gestionar copias de seguridad.
 
----
+2. **Editor Rico Estilo Apple Notas:**
+   - **Barra de formato `Aa`:** título, subtítulo, cuerpo, **negrita**, *cursiva*, <u>subrayado</u>, ~~tachado~~, resaltado, monoespaciado, listas con viñetas y numeradas.
+   - **Checklists interactivos:** casillas de verificación con auto-ordenación opcional de tareas completadas y contadores de progreso.
+   - **Secciones plegables:** encabezados `#` y `##` colapsables.
+   - **Tablas editables**, **fotos adjuntas** y **Garabatos** (lienzo de dibujo con pincel, rotulador, lápiz, borrador, selector de color y grosor).
+   - **Detección inteligente:** `#etiquetas`, enlaces web (`https://...`), teléfonos, correos, enlaces internos entre notas (`>>`) y cálculo matemático en línea (`=`).
 
-## 🚀 Funcionalidades (Alcance Cerrado)
+3. **Organización y Carpetas:**
+   - Carpetas personalizadas (crear, renombrar y eliminar con reasignación segura a *"Notas"*).
+   - **Carpetas inteligentes:** *Con tareas*, *Con dibujos y fotos* y *De hoy*.
+   - Agrupación automática por fecha (**Hoy**, **Ayer**, **Esta semana**, **Mes y año**) y sección prioritaria **Fijadas**.
+   - Vista en **Lista** o **Galería**, ordenación y búsqueda reactiva.
 
-1. **Lista de notas agrupada por fecha de modificación:**
-   - Agrupación automática temporal: **Hoy**, **Ayer**, **Esta semana** y **Mes y año**.
-   - Sección prioritaria para notas fijadas (**Fijadas**).
-2. **Título grande estilo iOS:**
-   - Cabecera con título en negrita que se compacta de forma fluida y suave al hacer scroll.
-3. **Editor fluido con guardado automático:**
-   - Campos independientes para título y cuerpo.
-   - Guardado automático con debounce corto (1,5 segundos tras dejar de escribir) o botón de confirmación ("Listo").
-   - Controles de Deshacer y Rehacer.
-4. **Gestión completa de carpetas:**
-   - Crear, renombrar y eliminar carpetas personalizadas.
-   - **Regla de integridad:** Al borrar una carpeta, las notas asociadas se reasignan automáticamente a la carpeta principal *"Notas"*, evitando su pérdida accidental.
-5. **Fijar notas arriba:**
-   - Alternar fijado con chincheta amarilla para mantener las notas relevantes siempre visibles en la parte superior.
-6. **Búsqueda reactiva:**
-   - Filtrado instantáneo por texto en el título y en el cuerpo de las notas.
-7. **Borrado con gesto y papelera de 30 días:**
-   - Gesto de deslizar (swipe-to-dismiss) con confirmación para enviar a la papelera.
-   - Retención durante 30 días con opción de restaurar o eliminar definitivamente.
-8. **Modo Claro y Oscuro:**
-   - Soporte nativo para cambio de tema dinámico según la configuración del sistema.
-9. **Exportación y compartir:**
-   - Exportar contenido de la nota como texto plano a través del menú de compartir nativo de Android (`Intent.ACTION_SEND`).
-10. **100% Local y Privada:**
-    - Sin necesidad de cuentas, sin conexión a internet y sin recolección de datos.
+4. **Privacidad y Seguridad:**
+   - Bloqueo individual de notas con **PIN y Biometría** (`androidx.biometric`), ocultando el contenido real tanto en la lista previa como al abrir la nota hasta desbloquearla.
 
-> [!NOTE]
-> Elementos visuales auxiliares que aparecen en capturas de iOS (como dibujo a mano alzada o casillas de verificación interactivas) quedan fuera del alcance cerrado de esta versión inicial.
+5. **Papelera con Restauración Completa:**
+   - Retención de 30 días con restauración individual directa, selección múltiple (restaurar o eliminar definitivamente) y botón de **Restaurar todo**.
+
+6. **Exportación, Importar y Copia de Seguridad:**
+   - Exportar a **PDF real / Imprimir** (`PdfDocument` / `PrintManager`) con dibujos e imágenes incluidos.
+   - Recibir texto o archivos `.md` desde otras aplicaciones (`ACTION_SEND`).
+   - **Copia de seguridad local (`.zip`)** desde Ajustes para exportar e importar todas las notas, carpetas, dibujos y fotos.
 
 ---
 
-## 🛠️ Requisitos del Entorno y Tecnologías
+## 🛠️ Tecnologías
 
-- **Sistema Operativo Mínimo:** Android 10 (API 29)
-- **Target SDK:** Android 14 / 15 (API 34/35)
-- **Lenguaje:** Kotlin 1.9.22
-- **JDK:** Java 17 (Eclipse Adoptium Temurin recomendado)
-- **UI:** Jetpack Compose con Material 3
-- **Base de Datos:** Room 2.6.1 (con exportación de esquemas y migraciones v1 -> v2)
-- **Gestión de Estado:** ViewModel con `StateFlow` y Coroutines
-- **Compilador / Build Tool:** Gradle 8.10.2 con Android Gradle Plugin 8.7.2
+- **Sistema Operativo Mínimo:** Android 10 (API 29) · **Compile SDK:** API 36
+- **Lenguaje:** Kotlin 2.3.10 · **JDK:** Java 17 / 21
+- **UI:** Jetpack Compose (BOM `2024.10.01`), Material 3 y `io.github.kyant0:backdrop:1.0.6`
+- **Biometría:** `androidx.biometric:biometric:1.1.0`
+- **Base de Datos:** Room 2.7.1 con KSP 2.3.5 y migraciones seguras (`v1 -> v2`)
+- **Arquitectura:** MVVM + Use Cases + `StateFlow`
 
 ---
 
@@ -69,7 +58,6 @@ En Windows (PowerShell):
 ```
 El archivo ejecutable se genera en:
 - `app/build/outputs/apk/debug/app-debug.apk`
-- `release/INotes-v1.0.0-debug.apk`
 
 ### 2. Ejecución de Pruebas Unitarias (JVM)
 ```powershell

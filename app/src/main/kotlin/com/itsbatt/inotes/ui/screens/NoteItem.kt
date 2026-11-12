@@ -1,5 +1,6 @@
 package com.itsbatt.inotes.ui.screens
 
+import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -28,14 +30,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itsbatt.inotes.data.room.entities.Note
+import com.itsbatt.inotes.domain.ChecklistUtils
 import com.itsbatt.inotes.domain.DateGroupingUtils
 import com.itsbatt.inotes.ui.IOSYellow
 
@@ -140,7 +145,21 @@ fun NoteItem(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        val snippet = note.body.replace("\n", " ").trim()
+                        val context = LocalContext.current
+                        val isLocked = remember(note.id) {
+                            context.getSharedPreferences("inotes_locks", Context.MODE_PRIVATE)
+                                .getBoolean("lock_${note.id}", false)
+                        }
+                        if (isLocked) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Bloqueada",
+                                tint = IOSYellow,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        val snippet = if (isLocked) "Nota bloqueada" else ChecklistUtils.formatPreview(note.body)
                         val displaySnippet = if (snippet.isNotBlank()) snippet else "Sin texto adicional"
                         Text(
                             text = displaySnippet,

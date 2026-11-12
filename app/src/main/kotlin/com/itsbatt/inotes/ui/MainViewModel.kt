@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class NoteSortOrder(val label: String) {
+    UPDATED_DESC("Fecha de edición"),
+    CREATED_DESC("Fecha de creación"),
+    TITLE_ASC("Título (A–Z)")
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = (application as INotesApplication).database
@@ -60,29 +66,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTrashMode = MutableStateFlow(false)
     val isTrashMode: StateFlow<Boolean> = _isTrashMode.asStateFlow()
 
+    private val _sortOrder = MutableStateFlow(NoteSortOrder.UPDATED_DESC)
+    val sortOrder: StateFlow<NoteSortOrder> = _sortOrder.asStateFlow()
+
     val displayedNotes: StateFlow<List<Note>> = combine(
         allNotes,
         deletedNotes,
         _selectedFolder,
         _searchQuery,
-        _isTrashMode
-    ) { notes, trashNotes, folder, query, inTrash ->
+        _isTrashMode,
+        _sortOrder
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val notes = values[0] as List<Note>
+        @Suppress("UNCHECKED_CAST")
+        val trashNotes = values[1] as List<Note>
+        val folder = values[2] as String
+        val query = values[3] as String
+        val inTrash = values[4] as Boolean
+        val sort = values[5] as NoteSortOrder
+
         val sourceList = if (inTrash) trashNotes else notes
-        val filteredByFolder = if (inTrash || folder == "Todas las notas" || folder == "Todo lo de iCloud") {
-            sourceList
-        } else if (folder == "Notas rápidas") {
-            sourceList.take(5)
-        } else {
-            sourceList.filter { it.folder.equals(folder, ignoreCase = true) }
+        val filteredByFolder = when {
+            inTrash || folder == "Todas las notas" || folder == "Todo lo de iCloud" -> sourceList
+            folder == "Notas rápidas" -> sourceList.take(5)
+            folder == "Con tareas" -> sourceList.filter { it.body.contains("- [ ] ") || it.body.contains("- [x] ") }
+            folder == "Con dibujos y fotos" -> sourceList.filter { it.body.contains("[drawing:") || it.body.contains("[image:") }
+            folder == "De hoy" -> {
+                val cal = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }
+                val startOfDay = cal.timeInMillis
+                sourceList.filter { it.updatedAt >= startOfDay }
+            }
+            else -> sourceList.filter { it.folder.equals(folder, ignoreCase = true) }
         }
 
-        if (query.isBlank()) {
+        val filteredByQuery = if (query.isBlank()) {
             filteredByFolder
         } else {
             val q = query.trim().lowercase()
             filteredByFolder.filter {
                 it.title.lowercase().contains(q) || it.body.lowercase().contains(q)
             }
+        }
+
+        when (sort) {
+            NoteSortOrder.UPDATED_DESC -> filteredByQuery.sortedByDescending { it.updatedAt }
+            NoteSortOrder.CREATED_DESC -> filteredByQuery.sortedByDescending { it.createdAt }
+            NoteSortOrder.TITLE_ASC -> filteredByQuery.sortedBy { it.title.ifBlank { "zzz" }.lowercase() }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -114,6 +149,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setSortOrder(order: NoteSortOrder) {
+        _sortOrder.value = order
+    }
+
+    fun moveNoteToFolder(noteId: Long, targetFolder: String) {
+        viewModelScope.launch {
+            val existing = allNotes.value.firstOrNull { it.id == noteId } ?: return@launch
+            noteDao.updateNote(existing.copy(folder = targetFolder, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun duplicateNote(note: Note, onDuplicated: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val newTitle = if (note.title.isNotBlank()) "${note.title} (copia)" else "Nota (copia)"
+            val newId = saveNoteUseCase.execute(0L, newTitle, note.body, note.folder)
+            onDuplicated(newId)
+        }
     }
 
     fun saveNote(
@@ -179,6 +233,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_selectedFolder.value == folder.name) {
                 _selectedFolder.value = "Todas las notas"
             }
+        }
+    }
+
+    fun exportBackup(context: android.content.Context, uri: android.net.Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = com.itsbatt.inotes.data.ExportAndBackupManager.exportBackupZip(
+                context = context,
+                destUri = uri,
+                notes = allNotes.value + deletedNotes.value,
+                folders = allFolders.value
+            )
+            onResult(ok)
+        }
+    }
+
+    fun importBackup(context: android.content.Context, uri: android.net.Uri, onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            val count = com.itsbatt.inotes.data.ExportAndBackupManager.importBackupZip(
+                context = context,
+                srcUri = uri,
+                noteDao = noteDao,
+                folderDao = folderDao
+            )
+            onResult(count)
         }
     }
 }
