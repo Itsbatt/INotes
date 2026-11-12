@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -126,6 +127,18 @@ fun NoteListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isTrashMode by viewModel.isTrashMode.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
+    val selectedTags by viewModel.selectedTags.collectAsState()
+    val smartFolders by viewModel.allSmartFolders.collectAsState()
+    val allFolders by viewModel.allFolders.collectAsState()
+
+    val displayFolderTitle = remember(selectedFolder, smartFolders) {
+        if (selectedFolder.startsWith("smart:")) {
+            val id = selectedFolder.removePrefix("smart:").toLongOrNull()
+            smartFolders.firstOrNull { it.id == id }?.name ?: "Carpeta inteligente"
+        } else {
+            selectedFolder
+        }
+    }
 
     val listState = rememberLazyListState()
 
@@ -135,6 +148,7 @@ fun NoteListScreen(
     }
 
     var notePendingDelete by remember { mutableStateOf<Note?>(null) }
+    var notePendingMove by remember { mutableStateOf<Note?>(null) }
     var activeNoteForOptions by remember { mutableStateOf<Note?>(null) }
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -162,7 +176,7 @@ fun NoteListScreen(
             ) {
                 Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     Text(
-                        text = selectedFolder,
+                        text = displayFolderTitle,
                         fontSize = 34.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -173,6 +187,28 @@ fun NoteListScreen(
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (selectedTags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(selectedTags.toList()) { tag ->
+                                Surface(
+                                    shape = CircleShape,
+                                    color = IOSYellow.copy(alpha = 0.22f),
+                                    modifier = Modifier.clickable { viewModel.toggleTagFilter(tag) }
+                                ) {
+                                    Text(
+                                        text = "$tag ×",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = IOSYellow,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -282,6 +318,8 @@ fun NoteListScreen(
                                                         }
                                                     },
                                                     onSwipeDelete = { notePendingDelete = note },
+                                                    onSwipePin = if (!isTrashMode) { { viewModel.togglePin(note) } } else null,
+                                                    onSwipeMove = if (!isTrashMode) { { notePendingMove = note } } else null,
                                                     showDivider = index < pinnedNotes.size - 1
                                                 )
                                             }
@@ -332,6 +370,8 @@ fun NoteListScreen(
                                                             }
                                                         },
                                                         onSwipeDelete = { notePendingDelete = note },
+                                                        onSwipePin = if (!isTrashMode) { { viewModel.togglePin(note) } } else null,
+                                                        onSwipeMove = if (!isTrashMode) { { notePendingMove = note } } else null,
                                                         showDivider = index < sectionNotes.size - 1
                                                     )
                                                 }
@@ -417,7 +457,7 @@ fun NoteListScreen(
                 exit = fadeOut()
             ) {
                 Text(
-                    text = selectedFolder,
+                    text = displayFolderTitle,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -813,6 +853,44 @@ fun NoteListScreen(
             showEmptyTrashDialog = false
         }
     )
+
+    // Quick Move to Folder dialog from left-swipe
+    notePendingMove?.let { movingNote ->
+        AlertDialog(
+            onDismissRequest = { notePendingMove = null },
+            title = { Text("Mover a carpeta") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val folderNames = allFolders.map { it.name }.ifEmpty { listOf("Notas") }
+                    folderNames.forEach { fname ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    viewModel.moveNoteToFolder(movingNote.id, fname)
+                                    android.widget.Toast
+                                        .makeText(context, "Movida a $fname", android.widget.Toast.LENGTH_SHORT)
+                                        .show()
+                                    notePendingMove = null
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Folder, contentDescription = null, tint = IOSYellow, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(fname, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { notePendingMove = null }) {
+                    Text("Cancelar", color = IOSYellow)
+                }
+            }
+        )
+    }
 }
 
 @Composable

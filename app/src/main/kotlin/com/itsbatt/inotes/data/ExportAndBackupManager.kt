@@ -169,7 +169,13 @@ object ExportAndBackupManager {
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
     }
 
-    fun exportBackupZip(context: Context, destUri: Uri, notes: List<Note>, folders: List<Folder>): Boolean {
+    fun exportBackupZip(
+        context: Context,
+        destUri: Uri,
+        notes: List<Note>,
+        folders: List<Folder>,
+        password: String? = null
+    ): Boolean {
         return try {
             val rootJson = JSONObject()
             rootJson.put("version", 1)
@@ -199,21 +205,50 @@ object ExportAndBackupManager {
             }
             rootJson.put("notes", notesArr)
 
-            context.contentResolver.openOutputStream(destUri)?.use { out ->
-                ZipOutputStream(out).use { zip ->
-                    zip.putNextEntry(ZipEntry("backup.json"))
-                    zip.write(rootJson.toString(2).toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
+            val cleanPassword = password?.takeIf { it.isNotBlank() }
+            if (cleanPassword == null) {
+                context.contentResolver.openOutputStream(destUri)?.use { out ->
+                    ZipOutputStream(out).use { zip ->
+                        zip.putNextEntry(ZipEntry("backup.json"))
+                        zip.write(rootJson.toString(2).toByteArray(Charsets.UTF_8))
+                        zip.closeEntry()
 
-                    listOf("drawings", "images").forEach { subDirName ->
-                        val dir = File(context.filesDir, subDirName)
-                        dir.listFiles()?.forEach { file ->
-                            zip.putNextEntry(ZipEntry("$subDirName/${file.name}"))
-                            file.inputStream().use { it.copyTo(zip) }
-                            zip.closeEntry()
+                        listOf("drawings", "images").forEach { subDirName ->
+                            val dir = File(context.filesDir, subDirName)
+                            dir.listFiles()?.forEach { file ->
+                                zip.putNextEntry(ZipEntry("$subDirName/${file.name}"))
+                                file.inputStream().use { it.copyTo(zip) }
+                                zip.closeEntry()
+                            }
                         }
                     }
                 }
+            } else {
+                val stagingDir = File(context.cacheDir, "backup_stage_${System.currentTimeMillis()}")
+                stagingDir.mkdirs()
+                val jsonFile = File(stagingDir, "backup.json")
+                jsonFile.writeText(rootJson.toString(2), Charsets.UTF_8)
+
+                val tempZipFile = File(context.cacheDir, "backup_enc_${System.currentTimeMillis()}.zip")
+                if (tempZipFile.exists()) tempZipFile.delete()
+
+                val zipFile = net.lingala.zip4j.ZipFile(tempZipFile, cleanPassword.toCharArray())
+                val params = net.lingala.zip4j.model.ZipParameters().apply {
+                    isEncryptFiles = true
+                    encryptionMethod = net.lingala.zip4j.model.enums.EncryptionMethod.AES
+                }
+                zipFile.addFile(jsonFile, params)
+                listOf("drawings", "images").forEach { subDirName ->
+                    val dir = File(context.filesDir, subDirName)
+                    if (dir.exists() && dir.listFiles()?.isNotEmpty() == true) {
+                        zipFile.addFolder(dir, params)
+                    }
+                }
+                context.contentResolver.openOutputStream(destUri)?.use { out ->
+                    tempZipFile.inputStream().use { it.copyTo(out) }
+                }
+                tempZipFile.delete()
+                stagingDir.deleteRecursively()
             }
             true
         } catch (_: Exception) {
@@ -221,54 +256,90 @@ object ExportAndBackupManager {
         }
     }
 
-    suspend fun importBackupZip(context: Context, srcUri: Uri, noteDao: NoteDao, folderDao: FolderDao): Int {
-        var importedCount = 0
-        var jsonText: String? = null
-        context.contentResolver.openInputStream(srcUri)?.use { input ->
-            ZipInputStream(input).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    if (entry.name == "backup.json") {
-                        jsonText = zip.readBytes().toString(Charsets.UTF_8)
-                    } else if (entry.name.startsWith("drawings/") || entry.name.startsWith("images/")) {
-                        val outFile = File(context.filesDir, entry.name)
-                        outFile.parentFile?.mkdirs()
-                        FileOutputStream(outFile).use { zip.copyTo(it) }
+    /**
+     * Returns >= 0 for imported notes count, or -1 if the zip is password-protected / wrong password.
+     */
+    suspend fun importBackupZip(
+        context: Context,
+        srcUri: Uri,
+        noteDao: NoteDao,
+        folderDao: FolderDao,
+        password: String? = null
+    ): Int {
+        val tempZipFile = File(context.cacheDir, "import_${System.currentTimeMillis()}.zip")
+        return try {
+            context.contentResolver.openInputStream(srcUri)?.use { input ->
+                FileOutputStream(tempZipFile).use { input.copyTo(it) }
+            } ?: return 0
+
+            val zipFile = net.lingala.zip4j.ZipFile(tempZipFile)
+            if (zipFile.isEncrypted) {
+                if (password.isNullOrBlank()) {
+                    return -1
+                }
+                zipFile.setPassword(password.toCharArray())
+            }
+
+            val extractDir = File(context.cacheDir, "import_extract_${System.currentTimeMillis()}")
+            extractDir.mkdirs()
+            try {
+                zipFile.extractAll(extractDir.absolutePath)
+            } catch (_: net.lingala.zip4j.exception.ZipException) {
+                extractDir.deleteRecursively()
+                return -1
+            }
+
+            val jsonFile = File(extractDir, "backup.json")
+            if (!jsonFile.exists()) {
+                extractDir.deleteRecursively()
+                return 0
+            }
+
+            listOf("drawings", "images").forEach { subDirName ->
+                val srcSub = File(extractDir, subDirName)
+                if (srcSub.exists()) {
+                    val destSub = File(context.filesDir, subDirName)
+                    destSub.mkdirs()
+                    srcSub.listFiles()?.forEach { f ->
+                        f.copyTo(File(destSub, f.name), overwrite = true)
                     }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
                 }
             }
-        }
 
-        val rawJson = jsonText ?: return 0
-        val root = JSONObject(rawJson)
-        val foldersArr = root.optJSONArray("folders") ?: JSONArray()
-        for (i in 0 until foldersArr.length()) {
-            val fObj = foldersArr.getJSONObject(i)
-            val name = fObj.optString("name").trim()
-            if (name.isNotEmpty() && folderDao.getFolderByName(name) == null) {
-                folderDao.insertFolder(Folder(name = name, createdAt = fObj.optLong("createdAt", System.currentTimeMillis())))
+            var importedCount = 0
+            val root = JSONObject(jsonFile.readText(Charsets.UTF_8))
+            val foldersArr = root.optJSONArray("folders") ?: JSONArray()
+            for (i in 0 until foldersArr.length()) {
+                val fObj = foldersArr.getJSONObject(i)
+                val name = fObj.optString("name").trim()
+                if (name.isNotEmpty() && folderDao.getFolderByName(name) == null) {
+                    folderDao.insertFolder(Folder(name = name, createdAt = fObj.optLong("createdAt", System.currentTimeMillis())))
+                }
             }
-        }
 
-        val notesArr = root.optJSONArray("notes") ?: JSONArray()
-        for (i in 0 until notesArr.length()) {
-            val nObj = notesArr.getJSONObject(i)
-            noteDao.insertNote(
-                Note(
-                    title = nObj.optString("title"),
-                    body = nObj.optString("body"),
-                    createdAt = nObj.optLong("createdAt", System.currentTimeMillis()),
-                    updatedAt = nObj.optLong("updatedAt", System.currentTimeMillis()),
-                    isPinned = nObj.optBoolean("isPinned", false),
-                    folder = nObj.optString("folder", "Notas"),
-                    isDeleted = nObj.optBoolean("isDeleted", false),
-                    deletedAt = if (nObj.isNull("deletedAt")) null else nObj.optLong("deletedAt")
+            val notesArr = root.optJSONArray("notes") ?: JSONArray()
+            for (i in 0 until notesArr.length()) {
+                val nObj = notesArr.getJSONObject(i)
+                noteDao.insertNote(
+                    Note(
+                        title = nObj.optString("title"),
+                        body = nObj.optString("body"),
+                        createdAt = nObj.optLong("createdAt", System.currentTimeMillis()),
+                        updatedAt = nObj.optLong("updatedAt", System.currentTimeMillis()),
+                        isPinned = nObj.optBoolean("isPinned", false),
+                        folder = nObj.optString("folder", "Notas"),
+                        isDeleted = nObj.optBoolean("isDeleted", false),
+                        deletedAt = if (nObj.isNull("deletedAt")) null else nObj.optLong("deletedAt")
+                    )
                 )
-            )
-            importedCount++
+                importedCount++
+            }
+            extractDir.deleteRecursively()
+            importedCount
+        } catch (_: Exception) {
+            0
+        } finally {
+            if (tempZipFile.exists()) tempZipFile.delete()
         }
-        return importedCount
     }
 }

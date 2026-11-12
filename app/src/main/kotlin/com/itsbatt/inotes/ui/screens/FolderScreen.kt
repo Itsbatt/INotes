@@ -114,9 +114,18 @@ fun FolderScreen(
     val folders by viewModel.allFolders.collectAsState()
     val allNotes by viewModel.allNotes.collectAsState()
     val deletedNotes by viewModel.deletedNotes.collectAsState()
+    val smartFolders by viewModel.allSmartFolders.collectAsState()
+    val selectedTags by viewModel.selectedTags.collectAsState()
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
+
+    var showNewSmartFolderDialog by remember { mutableStateOf(false) }
+    var smartName by remember { mutableStateOf("") }
+    var smartTagsInput by remember { mutableStateOf("") }
+    var smartRequireTasks by remember { mutableStateOf(false) }
+    var smartRequireMedia by remember { mutableStateOf(false) }
+    var smartDateRange by remember { mutableStateOf("ALL") }
 
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var renameInput by remember { mutableStateOf("") }
@@ -288,18 +297,49 @@ fun FolderScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = "Etiquetas",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Etiquetas",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            if (selectedTags.isNotEmpty()) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "Limpiar",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .clickable { viewModel.clearTagFilters() }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = IOSYellow,
+                                        modifier = Modifier.clickable {
+                                            viewModel.setSearchQuery("")
+                                            onFolderSelected("Todas las notas")
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "Ver (${selectedTags.size})",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color.Black,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -308,30 +348,28 @@ fun FolderScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(detectedTags) { tag ->
+                                val isSelected = selectedTags.contains(tag)
                                 val tagInteraction = remember { MutableInteractionSource() }
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface,
+                                    color = if (isSelected) IOSYellow.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surface,
                                     border = BorderStroke(
                                         1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                        if (isSelected) IOSYellow else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                     ),
                                     modifier = Modifier
                                         .iosPressScale(tagInteraction)
                                         .clickable(
                                             interactionSource = tagInteraction,
                                             indication = null,
-                                            onClick = {
-                                                viewModel.setSearchQuery(tag)
-                                                onFolderSelected("Todas las notas")
-                                            }
+                                            onClick = { viewModel.toggleTagFilter(tag) }
                                         )
                                 ) {
                                     Text(
                                         text = tag,
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) IOSYellow else MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                     )
                                 }
@@ -355,14 +393,48 @@ fun FolderScreen(
                     val mediaCount = allNotes.count { it.body.contains("[drawing:") || it.body.contains("[image:") }
                     val todayCount = allNotes.count { it.updatedAt >= startOfDay }
 
-                    SectionHeader(title = "Carpetas inteligentes")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Carpetas inteligentes",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "+ Nueva",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IOSYellow,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable {
+                                    smartName = ""
+                                    smartTagsInput = ""
+                                    smartRequireTasks = false
+                                    smartRequireMedia = false
+                                    smartDateRange = "ALL"
+                                    showNewSmartFolderDialog = true
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     GroupedCard {
                         FolderItemRow(
                             name = "Con tareas",
                             count = tasksCount,
                             icon = Icons.Default.CheckCircle,
                             iconTint = Color(0xFF34C759),
-                            onClick = { onFolderSelected("Con tareas") },
+                            onClick = {
+                                viewModel.clearTagFilters()
+                                onFolderSelected("Con tareas")
+                            },
                             showDivider = true
                         )
                         FolderItemRow(
@@ -370,7 +442,10 @@ fun FolderScreen(
                             count = mediaCount,
                             icon = Icons.Default.Image,
                             iconTint = Color(0xFF5856D6),
-                            onClick = { onFolderSelected("Con dibujos y fotos") },
+                            onClick = {
+                                viewModel.clearTagFilters()
+                                onFolderSelected("Con dibujos y fotos")
+                            },
                             showDivider = true
                         )
                         FolderItemRow(
@@ -378,9 +453,27 @@ fun FolderScreen(
                             count = todayCount,
                             icon = Icons.Default.Today,
                             iconTint = Color(0xFF007AFF),
-                            onClick = { onFolderSelected("De hoy") },
-                            showDivider = false
+                            onClick = {
+                                viewModel.clearTagFilters()
+                                onFolderSelected("De hoy")
+                            },
+                            showDivider = smartFolders.isNotEmpty()
                         )
+                        smartFolders.forEachIndexed { idx, sf ->
+                            FolderItemRow(
+                                name = sf.name,
+                                count = viewModel.countMatchingSmartFolder(allNotes, sf),
+                                icon = Icons.Default.AutoAwesome,
+                                iconTint = IOSYellow,
+                                isEditMode = isEditMode,
+                                onDeleteClick = { viewModel.deleteSmartFolder(sf.id) },
+                                onClick = {
+                                    viewModel.clearTagFilters()
+                                    onFolderSelected("smart:${sf.id}")
+                                },
+                                showDivider = idx < smartFolders.lastIndex
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(22.dp))
                 }
@@ -536,6 +629,120 @@ fun FolderScreen(
                         contentDescription = "Nueva nota",
                         tint = IOSYellow,
                         modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    // iOS 26 Liquid Glass Modal: Create Custom Smart Folder
+    LiquidGlassModal(
+        visible = showNewSmartFolderDialog,
+        backdrop = backdrop,
+        title = "Nueva carpeta inteligente",
+        onDismiss = { showNewSmartFolderDialog = false },
+        confirmEnabled = smartName.trim().isNotEmpty(),
+        onConfirm = {
+            viewModel.createSmartFolder(
+                name = smartName,
+                tagsFilter = smartTagsInput,
+                requireTasks = smartRequireTasks,
+                requireMedia = smartRequireMedia,
+                dateRange = smartDateRange
+            )
+            showNewSmartFolderDialog = false
+        }
+    ) {
+        IOSGlassTextField(
+            value = smartName,
+            onValueChange = { smartName = it },
+            placeholder = "Nombre (ej. Trabajo pendiente)"
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        IOSGlassTextField(
+            value = smartTagsInput,
+            onValueChange = { smartTagsInput = it },
+            placeholder = "Etiquetas (#trabajo, #urgente)"
+        )
+        if (detectedTags.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(detectedTags) { t ->
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.clickable {
+                            val current = smartTagsInput.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet()
+                            if (current.contains(t)) current.remove(t) else current.add(t)
+                            smartTagsInput = current.joinToString(", ")
+                        }
+                    ) {
+                        Text(
+                            text = t,
+                            fontSize = 12.sp,
+                            color = IOSYellow,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = if (smartRequireTasks) IOSYellow.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { smartRequireTasks = !smartRequireTasks }
+            ) {
+                Text(
+                    text = if (smartRequireTasks) "✓ Con tareas" else "Con tareas",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (smartRequireTasks) IOSYellow else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+            }
+            Surface(
+                shape = CircleShape,
+                color = if (smartRequireMedia) IOSYellow.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { smartRequireMedia = !smartRequireMedia }
+            ) {
+                Text(
+                    text = if (smartRequireMedia) "✓ Dibujos/Fotos" else "Dibujos/Fotos",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (smartRequireMedia) IOSYellow else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("ALL" to "Siempre", "TODAY" to "Hoy", "WEEK" to "7 días").forEach { (key, label) ->
+                val sel = smartDateRange == key
+                Surface(
+                    shape = CircleShape,
+                    color = if (sel) IOSYellow.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { smartDateRange = key }
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                        color = if (sel) IOSYellow else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     )
                 }
             }

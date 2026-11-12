@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,9 +61,11 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Image
@@ -80,12 +83,15 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TextFormat
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -184,9 +190,12 @@ fun NoteDetailScreen(
     var isNoteLocked by remember(currentNoteId) {
         mutableStateOf(currentNoteId != 0L && lockPrefs.getBoolean("lock_$currentNoteId", false))
     }
-    var isUnlockedSession by remember(currentNoteId) { mutableStateOf(!isNoteLocked) }
+    val unlockedNoteIds by viewModel.unlockedNoteIds.collectAsState()
+    val isUnlockedSession = !isNoteLocked || unlockedNoteIds.contains(currentNoteId)
     var showPinSetupDialog by remember { mutableStateOf(false) }
     var pinInput by remember { mutableStateOf("") }
+    var showVersionHistory by remember { mutableStateOf(false) }
+    val noteVersions by viewModel.getVersionsForNote(currentNoteId).collectAsState(initial = emptyList())
 
     val allFolders by viewModel.allFolders.collectAsState()
     val backdrop = rememberLayerBackdrop()
@@ -230,6 +239,48 @@ fun NoteDetailScreen(
                 updateBodyWithUndo("$body$lead[image:$savedImgPath]\n")
             }
         }
+    }
+
+    val documentScannerLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            val scanResult = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+            val pages = scanResult?.pages.orEmpty()
+            if (pages.isNotEmpty()) {
+                pages.forEach { page ->
+                    val savedPath = com.itsbatt.inotes.data.DocumentScannerHelper.copyScannedUriToImages(context, page.imageUri)
+                    if (savedPath != null) {
+                        val lead = if (body.isEmpty() || body.endsWith("\n")) "" else "\n"
+                        updateBodyWithUndo("$body$lead[image:$savedPath]\n")
+                    }
+                    com.itsbatt.inotes.data.DocumentScannerHelper.recognizeTextOffline(context, page.imageUri) { ocrText ->
+                        if (ocrText.isNotBlank()) {
+                            val lead = if (body.isEmpty() || body.endsWith("\n")) "" else "\n"
+                            updateBodyWithUndo("$body${lead}Texto escaneado (OCR):\n$ocrText\n")
+                        }
+                    }
+                }
+                scanResult?.pdf?.uri?.let { pdfUri ->
+                    com.itsbatt.inotes.data.DocumentScannerHelper.copyScannedPdfToFiles(context, pdfUri)
+                }
+                Toast.makeText(context, "Documento escaneado (${pages.size} pág.)", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun launchDocumentScanner() {
+        val activity = context as? android.app.Activity ?: return
+        com.itsbatt.inotes.data.DocumentScannerHelper.getScannerClient()
+            .getStartScanIntent(activity)
+            .addOnSuccessListener { intentSender ->
+                documentScannerLauncher.launch(
+                    androidx.activity.result.IntentSenderRequest.Builder(intentSender).build()
+                )
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Escáner no disponible en este dispositivo", Toast.LENGTH_SHORT).show()
+            }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -1070,6 +1121,14 @@ fun NoteDetailScreen(
             onInsertDivider = {
                 updateBodyWithUndo(body + "\n---\n")
                 showOptionsMenu = false
+            },
+            onScanDocument = {
+                showOptionsMenu = false
+                launchDocumentScanner()
+            },
+            onShowHistory = {
+                showOptionsMenu = false
+                showVersionHistory = true
             }
         )
 
@@ -1102,7 +1161,7 @@ fun NoteDetailScreen(
                     executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            isUnlockedSession = true
+                            viewModel.markNoteUnlocked(currentNoteId)
                             pinInput = ""
                         }
                     }
@@ -1133,7 +1192,7 @@ fun NoteDetailScreen(
                 onConfirm = {
                     val expected = lockPrefs.getString("pin_code", "")
                     if (pinInput == expected) {
-                        isUnlockedSession = true
+                        viewModel.markNoteUnlocked(currentNoteId)
                         pinInput = ""
                     } else {
                         Toast.makeText(context, "PIN incorrecto", Toast.LENGTH_SHORT).show()
@@ -1161,12 +1220,83 @@ fun NoteDetailScreen(
                             .putBoolean("lock_$currentNoteId", true)
                             .apply()
                         isNoteLocked = true
-                        isUnlockedSession = true
+                        viewModel.markNoteUnlocked(currentNoteId)
                         showPinSetupDialog = false
                         pinInput = ""
                         Toast.makeText(context, "Nota bloqueada con PIN", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "Mínimo 4 dígitos", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+        }
+
+        // Version History Modal ("Historial de versiones")
+        if (showVersionHistory) {
+            AlertDialog(
+                onDismissRequest = { showVersionHistory = false },
+                title = { Text("Historial de versiones") },
+                text = {
+                    if (noteVersions.isEmpty()) {
+                        Text(
+                            "Aún no hay instantáneas guardadas para esta nota.",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val fmt = remember { SimpleDateFormat("d MMM HH:mm:ss", Locale("es")) }
+                            noteVersions.forEach { ver ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            undoStack.add(body)
+                                            redoStack.clear()
+                                            title = ver.title
+                                            body = ver.body
+                                            showVersionHistory = false
+                                            Toast.makeText(context, "Versión restaurada", Toast.LENGTH_SHORT).show()
+                                        }
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = fmt.format(Date(ver.createdAt)),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = IOSYellow
+                                        )
+                                        if (ver.title.isNotBlank()) {
+                                            Text(
+                                                text = ver.title,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        Text(
+                                            text = ver.body.take(100).ifBlank { "(Sin contenido)" },
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showVersionHistory = false }) {
+                        Text("Cerrar", color = IOSYellow)
                     }
                 }
             )
@@ -1591,7 +1721,9 @@ private fun IOS26OptionsPopover(
     onDuplicate: () -> Unit,
     onInsertChecklist: () -> Unit,
     onInsertDate: () -> Unit,
-    onInsertDivider: () -> Unit
+    onInsertDivider: () -> Unit,
+    onScanDocument: () -> Unit = {},
+    onShowHistory: () -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
     val config = LocalLiquidGlassConfig.current
@@ -1768,6 +1900,18 @@ private fun IOS26OptionsPopover(
                         label = "Insertar línea divisoria",
                         isDark = isDark,
                         onClick = onInsertDivider
+                    )
+                    PopoverMenuItem(
+                        icon = Icons.Default.DocumentScanner,
+                        label = "Escanear documento (OCR)",
+                        isDark = isDark,
+                        onClick = onScanDocument
+                    )
+                    PopoverMenuItem(
+                        icon = Icons.Default.History,
+                        label = "Historial de versiones",
+                        isDark = isDark,
+                        onClick = onShowHistory
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     HorizontalDivider(thickness = 0.5.dp, color = dividerColor)

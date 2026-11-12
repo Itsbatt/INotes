@@ -8,18 +8,24 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.itsbatt.inotes.data.room.dao.FolderDao
 import com.itsbatt.inotes.data.room.dao.NoteDao
+import com.itsbatt.inotes.data.room.dao.NoteVersionDao
+import com.itsbatt.inotes.data.room.dao.SmartFolderDao
 import com.itsbatt.inotes.data.room.entities.Folder
 import com.itsbatt.inotes.data.room.entities.Note
+import com.itsbatt.inotes.data.room.entities.NoteVersion
+import com.itsbatt.inotes.data.room.entities.SmartFolder
 
 @Database(
-    entities = [Note::class, Folder::class],
-    version = 2,
+    entities = [Note::class, Folder::class, NoteVersion::class, SmartFolder::class],
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
+    abstract fun noteVersionDao(): NoteVersionDao
+    abstract fun smartFolderDao(): SmartFolderDao
 
     companion object {
         @Volatile
@@ -49,6 +55,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS note_versions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        noteId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_note_versions_noteId ON note_versions(noteId)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS smart_folders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        tagsFilter TEXT NOT NULL,
+                        requireTasks INTEGER NOT NULL,
+                        requireMedia INTEGER NOT NULL,
+                        dateRange TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -56,7 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "inotes_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

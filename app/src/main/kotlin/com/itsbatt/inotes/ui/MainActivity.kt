@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,26 @@ sealed class AppScreen {
 class MainActivity : FragmentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private var lastBackgroundAt: Long = 0L
+
+    override fun onStop() {
+        super.onStop()
+        lastBackgroundAt = System.currentTimeMillis()
+        if (viewModel.autoLockMinutes.value == 0) {
+            viewModel.lockAllNotes()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val mins = viewModel.autoLockMinutes.value
+        if (mins > 0 && lastBackgroundAt > 0L) {
+            val elapsed = System.currentTimeMillis() - lastBackgroundAt
+            if (elapsed >= mins * 60_000L) {
+                viewModel.lockAllNotes()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -149,13 +170,16 @@ class MainActivity : FragmentActivity() {
                                     currentScreen = AppScreen.Folders
                                 }
 
+                                val autoLockMins by viewModel.autoLockMinutes.collectAsState()
                                 LiquidGlassLabScreen(
                                     config = glassConfig,
                                     isDarkTheme = isDarkTheme,
+                                    autoLockMinutes = autoLockMins,
+                                    onAutoLockMinutesChange = { viewModel.setAutoLockMinutes(it) },
                                     onConfigChange = { glassConfig = it },
                                     onDarkThemeChange = { isDarkTheme = it },
-                                    onExportBackup = { uri ->
-                                        viewModel.exportBackup(this@MainActivity, uri) { ok ->
+                                    onExportBackup = { uri, password ->
+                                        viewModel.exportBackup(this@MainActivity, uri, password) { ok ->
                                             android.widget.Toast.makeText(
                                                 this@MainActivity,
                                                 if (ok) "Copia exportada" else "Error al exportar",
@@ -163,13 +187,17 @@ class MainActivity : FragmentActivity() {
                                             ).show()
                                         }
                                     },
-                                    onImportBackup = { uri ->
-                                        viewModel.importBackup(this@MainActivity, uri) { count ->
-                                            android.widget.Toast.makeText(
-                                                this@MainActivity,
-                                                "Importadas $count notas",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
+                                    onImportBackup = { uri, password, onNeedPassword ->
+                                        viewModel.importBackup(this@MainActivity, uri, password) { count ->
+                                            if (count == -1) {
+                                                onNeedPassword()
+                                            } else {
+                                                android.widget.Toast.makeText(
+                                                    this@MainActivity,
+                                                    "Importadas $count notas",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
                                         }
                                     },
                                     onBack = {

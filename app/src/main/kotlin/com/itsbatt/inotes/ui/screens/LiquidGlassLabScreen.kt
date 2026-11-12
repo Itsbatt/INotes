@@ -82,25 +82,44 @@ import kotlin.math.roundToInt
 fun LiquidGlassLabScreen(
     config: LiquidGlassConfig,
     isDarkTheme: Boolean,
+    autoLockMinutes: Int = 0,
+    onAutoLockMinutesChange: (Int) -> Unit = {},
     onConfigChange: (LiquidGlassConfig) -> Unit,
     onDarkThemeChange: (Boolean) -> Unit,
-    onExportBackup: (Uri) -> Unit = {},
-    onImportBackup: (Uri) -> Unit = {},
+    onExportBackup: (Uri, String?) -> Unit = { _, _ -> },
+    onImportBackup: (Uri, String?, () -> Unit) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
 ) {
     val backdrop = rememberLayerBackdrop()
     var selectedPreset by remember { mutableStateOf("iOS 26") }
 
+    var pendingExportPassword by remember { mutableStateOf<String?>(null) }
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var exportPasswordInput by remember { mutableStateOf("") }
+
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var importPasswordInput by remember { mutableStateOf("") }
+
     val exportZipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
-        if (uri != null) onExportBackup(uri)
+        if (uri != null) {
+            onExportBackup(uri, pendingExportPassword)
+        }
+        pendingExportPassword = null
     }
 
     val importZipLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) onImportBackup(uri)
+        if (uri != null) {
+            pendingImportUri = uri
+            onImportBackup(uri, null) {
+                importPasswordInput = ""
+                showImportPasswordDialog = true
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -320,9 +339,53 @@ fun LiquidGlassLabScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Auto-lock section
+                Text(
+                    text = "BLOQUEO AUTOMÁTICO DE NOTAS",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val lockOptions = listOf(
+                        0 to "Al salir",
+                        1 to "1m",
+                        5 to "5m",
+                        15 to "15m",
+                        -1 to "Nunca"
+                    )
+                    lockOptions.forEach { (mins, label) ->
+                        val selected = autoLockMinutes == mins
+                        LiquidGlassPill(
+                            backdrop = backdrop,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            shape = CircleShape,
+                            tintOverride = if (selected) IOSYellow.copy(alpha = 0.28f) else null,
+                            onClick = { onAutoLockMinutesChange(mins) }
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) IOSYellow else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 // Backup section (moved into Settings)
                 Text(
-                    text = "COPIA DE SEGURIDAD",
+                    text = "COPIA DE SEGURIDAD (.ZIP)",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -338,7 +401,10 @@ fun LiquidGlassLabScreen(
                             .weight(1f)
                             .height(48.dp),
                         shape = CircleShape,
-                        onClick = { exportZipLauncher.launch("inotes_backup_${System.currentTimeMillis()}.zip") }
+                        onClick = {
+                            exportPasswordInput = ""
+                            showExportPasswordDialog = true
+                        }
                     ) {
                         Row(
                             modifier = Modifier.fillMaxSize(),
@@ -440,6 +506,87 @@ fun LiquidGlassLabScreen(
                     )
                 }
             }
+        }
+
+        if (showExportPasswordDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showExportPasswordDialog = false },
+                title = { Text("Cifrar copia de seguridad") },
+                text = {
+                    Column {
+                        Text(
+                            "Opcional: introduce una contraseña AES-256 para proteger el archivo .zip, o déjalo vacío para exportar sin contraseña.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = exportPasswordInput,
+                            onValueChange = { exportPasswordInput = it },
+                            placeholder = { Text("Contraseña (opcional)") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        )
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        pendingExportPassword = exportPasswordInput.takeIf { it.isNotBlank() }
+                        showExportPasswordDialog = false
+                        exportZipLauncher.launch("inotes_backup_${System.currentTimeMillis()}.zip")
+                    }) {
+                        Text("Continuar", color = IOSYellow)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showExportPasswordDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
+        if (showImportPasswordDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showImportPasswordDialog = false },
+                title = { Text("Copia protegida") },
+                text = {
+                    Column {
+                        Text(
+                            "Este archivo .zip está cifrado. Introduce la contraseña para restaurar tus notas.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = importPasswordInput,
+                            onValueChange = { importPasswordInput = it },
+                            placeholder = { Text("Contraseña") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        )
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        val uri = pendingImportUri
+                        val pwd = importPasswordInput
+                        showImportPasswordDialog = false
+                        if (uri != null) {
+                            onImportBackup(uri, pwd) {
+                                showImportPasswordDialog = true
+                            }
+                        }
+                    }) {
+                        Text("Importar", color = IOSYellow)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showImportPasswordDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
         }
     }
 }
